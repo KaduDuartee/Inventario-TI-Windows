@@ -25,8 +25,11 @@ $descricao = $licenca | Select-String "Descri"
 $tipoChave = (($descricao.Line -split ":")[1]).Trim()
 
 # Chave do Windows
-$licencaWindows = Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SoftwareProtectionPlatform"
+$chaveWindows = $licencaWindows.BackupProductKeyDefault
 
+if ($chaveWindows) {
+    $chaveMascarada = "XXXXX-XXXXX-XXXXX-XXXXX-" + ($chaveWindows -split "-")[-1]
+}
 
 # Status da Rede
 $adaptador = Get-NetAdapter |
@@ -70,7 +73,7 @@ Write-Host "Processador        : $($cpu.Name)"
 Write-Host "RAM (GB)           : $([Math]::Round($pc.TotalPhysicalMemory/1GB,2))"
 Write-Host "Sistema Operacional: $($os.Caption)"
 Write-Host "Tipo de Chave      : $tipoChave"
-Write-Host "Chave do Windows   : $($licencaWindows.BackupProductKeyDefault)"
+Write-Host "Chave do Windows   : $chaveMascarada"
 Write-Host "Versao             : $($os.Version)"
 Write-Host "IP                 : $($rede.IPv4Address.IPAddress)"
 Write-Host "Status             : $($adaptador.Status)"
@@ -88,6 +91,7 @@ $inventario = [PSCustomObject]@{
     RAM_GB          = [Math]::Round($pc.TotalPhysicalMemory/1GB,2)
     SO              = $os.Caption
     Tipo_de_Chave   = $tipoChave
+    Chave_do_Windows= $chaveMascarada
     IP              = $rede.IPv4Address.IPAddress
     Versao_Office    = $office
     AnyDesk         = $anydesk
