@@ -24,11 +24,25 @@ $licenca = cscript.exe C:\Windows\System32\slmgr.vbs /dli
 $descricao = $licenca | Select-String "Descri"
 $tipoChave = (($descricao.Line -split ":")[1]).Trim()
 
-# Chave do Windows
-$chaveWindows = $licencaWindows.BackupProductKeyDefault
+# Chave do Windows 
+$produtoWindows = Get-CimInstance -ClassName SoftwareLicensingProduct |
+    Where-Object {
+        $_.ApplicationID -eq '55c92734-d682-4d71-983e-d6ec3f16059f' -and
+        $_.PartialProductKey -and
+        $_.LicenseStatus -eq 1
+    } |
+    Select-Object -First 1
 
-if ($chaveWindows) {
-    $chaveMascarada = "XXXXX-XXXXX-XXXXX-XXXXX-" + ($chaveWindows -split "-")[-1]
+$tipoChave = if ($produtoWindows) {
+    $produtoWindows.Description
+} else {
+    'Licença não identificada'
+}
+
+$chaveMascarada = if ($produtoWindows.PartialProductKey) {
+    "XXXXX-XXXXX-XXXXX-XXXXX-$($produtoWindows.PartialProductKey)"
+} else {
+    'Não disponível'
 }
 
 # Status da Rede
@@ -83,19 +97,19 @@ Write-Host "AnyDesk            : $anydesk"
 # Objeto Final
 
 $inventario = [PSCustomObject]@{
-    Nome            = $pc.Name
-    Fabricante      = $pc.Manufacturer
-    Modelo          = $pc.Model
-    Numero_de_Serie = $bios.SerialNumber
-    Processador     = $cpu.Name
-    RAM_GB          = [Math]::Round($pc.TotalPhysicalMemory/1GB,2)
-    SO              = $os.Caption
-    Tipo_de_Chave   = $tipoChave
-    Chave_do_Windows= $chaveMascarada
-    IP              = $rede.IPv4Address.IPAddress
+    Nome             = $pc.Name
+    Fabricante       = $pc.Manufacturer
+    Modelo           = $pc.Model
+    Numero_de_Serie  = $bios.SerialNumber
+    Processador      = $cpu.Name
+    RAM_GB           = [Math]::Round($pc.TotalPhysicalMemory / 1GB, 2)
+    SO               = $os.Caption
+    Tipo_de_Chave    = $tipoChave
+    Chave_Windows    = $chaveMascarada
+    IP               = $rede.IPv4Address.IPAddress
     Versao_Office    = $office
-    AnyDesk         = $anydesk
-    DataColeta      = Get-Date -Format "yyyy-MM-dd HH:mm"
+    AnyDesk          = $anydesk
+    DataColeta       = Get-Date -Format 'yyyy-MM-dd HH:mm'
 }
 
 # Exportação CSV
