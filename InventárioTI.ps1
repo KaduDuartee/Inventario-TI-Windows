@@ -5,23 +5,43 @@ Write-Host " INVENTÁRIO TI - TESTE 02"
 Write-Host "===================================="
 Write-Host ""
 
-# Variáveis
+#================================================
+# Informações do Desktop
 
-# Info Desktop
-$pc = Get-CimInstance Win32_ComputerSystem
+try {
+    # Nome do Desktop
+     $pc = Get-CimInstance -ClassName Win32_ComputerSystem -ErrorAction Stop
 
 # Número de Série
-$bios = Get-CimInstance Win32_BIOS
+    $bios = Get-CimInstance -ClassName Win32_BIOS -ErrorAction Stop
 
 # Processador
-$cpu = Get-CimInstance Win32_Processor
+    $cpu = Get-CimInstance -ClassName Win32_Processor -ErrorAction Stop
 
 # Sistema Operacional
-$os = Get-CimInstance Win32_OperatingSystem
+     $os = Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction Stop
+}
+
+catch {
+    Write-Error (
+        "Não foi possível coletar as informações principais do computador. Detalhes: {0}" `
+        -f $_.Exception.Message
+    )
+
+    exit 1
+}
+
+#================================================
 
 #======================================
 # Chave do Windows / Tipo de Chave
 
+# Valores Fallback
+$tipoChave      = 'Licença não identificada'
+$statusLicenca  = 'Não identificado'
+$chaveMascarada = 'Não disponível'
+
+try {
 # Procura de chave instalada
 $produtosWindows = @(
     Get-CimInstance -ClassName SoftwareLicensingProduct |
@@ -69,16 +89,19 @@ if ($produtoWindows) {
     }
 
     $chaveMascarada = "XXXXX-XXXXX-XXXXX-XXXXX-$($produtoWindows.PartialProductKey)"
+    } 
 }
-else {
-    $tipoChave      = 'Licença não identificada'
-    $statusLicenca  = 'Não identificado'
-    $chaveMascarada = 'Não disponível'
+catch {
+    Write-Warning (
+        "Não foi possível consultar o licenciamento do Windows. Detalhes: {0}" `
+        -f $_.Exception.Message
+    )
 }
 #======================================
 
 #======================================
 # Status da Rede
+
 $adaptador = Get-NetAdapter |
 Where-Object {
     $_.Status -eq "Up" -and
@@ -89,6 +112,7 @@ Where-Object {
 
 #======================================
 # IP 
+
 $rota = Get-NetRoute -DestinationPrefix "0.0.0.0/0" |
     Sort-Object RouteMetric | Select-Object -First 1
 
@@ -100,6 +124,7 @@ $rede = Get-NetIPConfiguration |
 
 #======================================
 # Versão do Office
+
 $office = Get-ItemProperty HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*, `
     HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\* -ErrorAction SilentlyContinue |
     Where-Object { $_.DisplayName -like "*Microsoft 365*" -or $_.DisplayName -like "*Office*" } |
@@ -108,7 +133,8 @@ $office = Get-ItemProperty HKLM:\Software\Microsoft\Windows\CurrentVersion\Unins
  #=====================================
  
  #=====================================
-#ID do AnyDesk
+# ID do AnyDesk
+
 $anydesk = $null
 if (Test-Path "C:\ProgramData\AnyDesk\system.conf") {
     $config = Get-Content "C:\ProgramData\AnyDesk\system.conf"
@@ -128,6 +154,7 @@ Write-Host "Processador        : $($cpu.Name)"
 Write-Host "RAM (GB)           : $([Math]::Round($pc.TotalPhysicalMemory/1GB,2))"
 Write-Host "Sistema Operacional: $($os.Caption)"
 Write-Host "Tipo de Chave      : $tipoChave"
+Write-Host "Status da Licenca  : $statusLicenca"
 Write-Host "Chave do Windows   : $chaveMascarada"
 Write-Host "Versao             : $($os.Version)"
 Write-Host "IP                 : $($rede.IPv4Address.IPAddress)"
