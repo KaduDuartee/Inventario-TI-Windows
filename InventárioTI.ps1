@@ -156,10 +156,130 @@ catch {
 #======================================
 # Versão do Office
 
-$office = Get-ItemProperty HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*, `
-    HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\* -ErrorAction SilentlyContinue |
-    Where-Object { $_.DisplayName -like "*Microsoft 365*" -or $_.DisplayName -like "*Office*" } |
-    Select-Object -First 1 -ExpandProperty DisplayName
+    # Valores fallback
+    $office                 = 'Não identificado'
+    $idsOffice              = 'Não disponível'
+    $versaoOffice           = 'Não disponível'
+    $arquiteturaOffice      = 'Não disponível'
+    $tipoInstalacaoOffice   = 'Não identificado'
+
+try {
+    # Locais de registro dos programas
+    $chavesDesinstalacao = @(
+        'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall'
+        'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall'
+    )
+
+    $entradasInstaladas = foreach ($chave in $chavesDesinstalacao) {
+        if (Test-Path -LiteralPath $chave) {
+            $caminhoEntradas = Join-Path -Path $chave -ChildPath '*'
+
+            Get-ItemProperty -Path $caminhoEntradas -ErrorAction SilentlyContinue
+        }
+    }
+
+    # Não representantes dos programas
+    $itensAuxiliares = @(
+        'Language Pack'
+        'Pacote de Idiomas'
+        'Proofing'
+        'MUI'
+        'Update'
+        'Atualização'
+        'Components?'
+        'Componentes?'
+        'Shared'
+        'Compartilhado'
+        'Click-to-Run'
+        'Clique para Executar'
+        'Telemetry'
+        'File Validation'
+        'Database Engine'
+        'Hotfix'
+        'Service Pack'
+    ) -join '|'
+
+    # Procura de switchs e apps
+    $produtosRegistro = @(
+        $entradasInstaladas |
+            Where-Object {
+                $_.DisplayName -and
+                $_.DisplayName -match '^Microsoft (365|Office|Project|Visio|Access|Excel|Outlook|PowerPoint|Publisher|Word|OneNote|Skype for Business)' -and
+                $_.DisplayName -notmatch $itensAuxiliares
+            } |
+            Sort-Object DisplayName -Unique
+    )
+
+    # Removedor do código de idioma do final do nome
+    $nomesOffice = @(
+        $produtosRegistro |
+            ForEach-Object {
+                $_.DisplayName -replace '\s+-\s+[a-z]{2}-[a-z]{2}$', ''
+            } |
+            Sort-Object -Unique
+    )
+
+    # Verificar primeiro o Click-to-Run
+    $caminhoClickToRun = 'HKLM:\SOFTWARE\Microsoft\Office\ClickToRun\Configuration'
+
+    if (Test-Path -LiteralPath $caminhoClickToRun) {
+        $configuracaoOffice = Get-ItemProperty -LiteralPath $caminhoClickToRun -ErrorAction Stop
+
+        if ($configuracaoOffice.ProductReleaseIds) {
+            $idsProduto = @(
+                $configuracaoOffice.ProductReleaseIds -split ',' |
+                    ForEach-Object { $_.Trim() } |
+                    Where-Object { $_ }
+            )
+
+            $idsOffice = $idsProduto -join '; '
+
+            if ($nomesOffice.Count -gt 0) {
+                $office = $nomesOffice -join '; '
+            }
+            else {
+                $office = $idsOffice
+            }
+
+            if ($configuracaoOffice.VersionToReport) {
+                $versaoOffice = $configuracaoOffice.VersionToReport
+            }
+            elseif ($configuracaoOffice.ClientVersionToReport) {
+                $versaoOffice = $configuracaoOffice.ClientVersionToReport
+            }
+
+            if ($configuracaoOffice.Platform) {
+                $arquiteturaOffice = $configuracaoOffice.Platform
+            }
+
+            $tipoInstalacaoOffice = 'Click-to-Run'
+        }
+    }
+
+    # Fallback para negativo no Click-to-Run
+    if (
+        $tipoInstalacaoOffice -eq 'Não identificado' -and
+        $nomesOffice.Count -gt 0
+    ) {
+        $office = $nomesOffice -join '; '
+
+        $versoesRegistro = @(
+            $produtosRegistro.DisplayVersion |
+                Where-Object { $_ } |
+                Sort-Object -Unique
+        )
+
+        if ($versoesRegistro.Count -gt 0) {
+            $versaoOffice = $versoesRegistro -join '; '
+        }
+
+        $tipoInstalacaoOffice = 'Registro de desinstalação'
+    }
+}
+catch {
+    $mensagemErro = 'Não foi possível identificar os produtos Office. Detalhes: {0}' -f $_.Exception.Message
+    Write-Warning $mensagemErro
+}
 
 #=====================================
  
@@ -192,7 +312,11 @@ Write-Host "Interface de Rede  : $nomeAdaptador"
 Write-Host "IP                 : $ipPrincipal"
 Write-Host "Status da Rede     : $statusAdaptador"
 Write-Host "Velocidade da Rede : $velocidadeAdaptador"
-Write-Host "Versao Office      : $office"        
+Write-Host "Produtos Office    : $office"
+Write-Host "IDs Office         : $idsOffice"
+Write-Host "Versao Office      : $versaoOffice"
+Write-Host "Arquitetura Office : $arquiteturaOffice"
+Write-Host "Instalacao Office  : $tipoInstalacaoOffice"
 Write-Host "AnyDesk            : $anydesk"
 #================================================
 
@@ -200,38 +324,89 @@ Write-Host "AnyDesk            : $anydesk"
 # Objeto Final
 
 $inventario = [PSCustomObject]@{
-    Nome             = $pc.Name
-    Fabricante       = $pc.Manufacturer
-    Modelo           = $pc.Model
-    Numero_de_Serie  = $bios.SerialNumber
-    Processador      = $cpu.Name
-    RAM_GB           = [Math]::Round($pc.TotalPhysicalMemory / 1GB, 2)
-    SO               = $os.Caption
-    Tipo_de_Chave    = $tipoChave
-    Chave_Windows    = $chaveMascarada
-    IP               = $ipPrincipal
-    Versao_Office    = $office
-    AnyDesk          = $anydesk
-    DataColeta       = Get-Date -Format 'yyyy-MM-dd HH:mm'
+    Nome                     = $pc.Name
+    Fabricante               = $pc.Manufacturer
+    Modelo                   = $pc.Model
+    Numero_de_Serie          = $bios.SerialNumber
+    Processador              = $cpu.Name
+    RAM_GB                   = [Math]::Round($pc.TotalPhysicalMemory / 1GB, 2)
+    SO                       = $os.Caption
+    Versao_SO                = $os.Version
+    Tipo_de_Chave            = $tipoChave
+    Status_da_Licenca        = $statusLicenca
+    Chave_Windows            = $chaveMascarada
+    Interface_de_Rede        = $nomeAdaptador
+    IP                       = $ipPrincipal
+    Status_da_Rede           = $statusAdaptador
+    Velocidade_da_Rede       = $velocidadeAdaptador
+    Produtos_Office          = $office
+    IDs_Office               = $idsOffice
+    Versao_Office            = $versaoOffice
+    Arquitetura_Office       = $arquiteturaOffice
+    Tipo_Instalacao_Office   = $tipoInstalacaoOffice
+    AnyDesk                  = $anydesk
+    DataColeta               = Get-Date -Format 'yyyy-MM-dd HH:mm'
 }
 #================================================
 
 #================================================
 # Exportação CSV
 
-$caminhoCSV = "C:\Inventario\inventario.csv"
+$caminhoCSV = 'C:\Inventario\inventario.csv'
+$pasta = Split-Path -Parent $caminhoCSV
 
-# Garante que a pasta existe
-$pasta = Split-Path $caminhoCSV
-if (-not (Test-Path $pasta)) {
-    New-Item -ItemType Directory -Path $pasta | Out-Null
+try {
+    # Criar a pasta
+    if (-not (Test-Path -LiteralPath $pasta -PathType Container)) {
+        New-Item -ItemType Directory -Path $pasta -ErrorAction Stop |
+            Out-Null
+    }
+
+    # Cabeçalho com o nome do objeto atual
+    $cabecalhoEsperado = (
+        $inventario |
+            ConvertTo-Csv -NoTypeInformation
+    )[0]
+
+    # Verifica se o CSV existente utiliza a mesma estrutura
+    if (Test-Path -LiteralPath $caminhoCSV -PathType Leaf) {
+        $cabecalhoAtual = Get-Content -LiteralPath $caminhoCSV -TotalCount 1 -ErrorAction Stop
+
+        if ($cabecalhoAtual -ne $cabecalhoEsperado) {
+            $dataBackup = Get-Date -Format 'yyyyMMdd-HHmmssfff'
+            $nomeBackup = 'inventario-backup-{0}.csv' -f $dataBackup
+            $caminhoBackup = Join-Path -Path $pasta -ChildPath $nomeBackup
+
+            Move-Item -LiteralPath $caminhoCSV -Destination $caminhoBackup -ErrorAction Stop
+
+            Write-Warning "A estrutura do inventário mudou. O CSV anterior foi preservado em: $caminhoBackup"
+        }
+    }
+
+    # Parâmetros da Exportação
+    $parametrosCSV = @{
+        LiteralPath       = $caminhoCSV
+        NoTypeInformation = $true
+        Encoding          = 'UTF8'
+        ErrorAction       = 'Stop'
+    }
+
+    # Acrescentar linha só com existência de CSV
+    if (Test-Path -LiteralPath $caminhoCSV -PathType Leaf) {
+        $parametrosCSV.Append = $true
+    }
+
+    $inventario |
+        Export-Csv @parametrosCSV
+
+        Write-Host ""
+        Write-Host "Inventario salvo em: $caminhoCSV"
+}
+catch {
+    $mensagemErro = 'Não foi possível salvar o inventário em CSV. Detalhes: {0}' -f $_.Exception.Message
+    Write-Error $mensagemErro
 }
 
-# Exporta (acrescenta ao arquivo se ele já existir)
-$inventario | Export-Csv -Path $caminhoCSV -Append -NoTypeInformation -Encoding UTF8
-
-Write-Host ""
-Write-Host "Inventario salvo em: $caminhoCSV"
 #================================================
 
 
