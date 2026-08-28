@@ -1,3 +1,71 @@
+#Requires -Version 5.1
+
+param(
+    [string]$PastaSaida
+)
+
+# Alerta para outros SO's
+if ($env:OS -ne 'Windows_NT') {
+    Write-Error 'Este script é compatível somente com sistemas Windows.'
+    exit 1
+}
+
+# Comandos essenciais para o script do inventário
+$comandosObrigatorios = @(
+    'Get-CimInstance'
+    'Get-ItemProperty'
+    'Export-Csv'
+)
+
+$comandosAusentes = @(
+    foreach ($nomeComando in $comandosObrigatorios) {
+        if (-not (Get-Command -Name $nomeComando -ErrorAction SilentlyContinue)) {
+            $nomeComando
+        }
+    }
+)
+
+if ($comandosAusentes.Count -gt 0) {
+    $listaComandos = $comandosAusentes -join ', '
+    Write-Error "Os seguintes comandos obrigatórios não estão disponíveis: $listaComandos"
+    exit 1
+}
+
+# Verifica os comandos de rede
+$comandosRede = @(
+    'Get-NetRoute'
+    'Get-NetIPConfiguration'
+    'Get-NetAdapter'
+)
+
+$comandosRedeAusentes = @(
+    foreach ($nomeComando in $comandosRede) {
+        if (-not (Get-Command -Name $nomeComando -ErrorAction SilentlyContinue)) {
+            $nomeComando
+        }
+    }
+)
+
+$redeModernaDisponivel = $comandosRedeAusentes.Count -eq 0
+
+# Pastas do Windows
+$pastaDadosComuns = [Environment]::GetFolderPath(
+    [Environment+SpecialFolder]::CommonApplicationData
+)
+
+$pastaDadosLocais = [Environment]::GetFolderPath(
+    [Environment+SpecialFolder]::LocalApplicationData
+)
+
+$pastaDadosRoaming = [Environment]::GetFolderPath(
+    [Environment+SpecialFolder]::ApplicationData
+)
+
+# Destino padrão quando nenhum caminho é informado
+if ([string]::IsNullOrWhiteSpace($PastaSaida)) {
+    $PastaSaida = Join-Path -Path $pastaDadosLocais -ChildPath 'InventarioTI'
+}
+
 Clear-Host
 
 Write-Host "===================================="
@@ -286,12 +354,40 @@ catch {
 #=====================================
 # ID do AnyDesk
 
-$anydesk = $null
-if (Test-Path "C:\ProgramData\AnyDesk\system.conf") {
-    $config = Get-Content "C:\ProgramData\AnyDesk\system.conf"
-    $anydeskLine = $config | Select-String "ad.anynet.id"
-    if ($anydeskLine) { $anydesk = ($anydeskLine.Line -split "=")[1].Trim() }
-}  
+# Valores fallback
+$anydesk = 'Não disponível'
+
+try {
+    # AnyDesk instalado como serviço ou somente para o usuário
+    $caminhosAnyDesk = @(
+        (Join-Path -Path $pastaDadosComuns -ChildPath 'AnyDesk\system.conf')
+        (Join-Path -Path $pastaDadosRoaming -ChildPath 'AnyDesk\system.conf')
+    )
+
+    $caminhoAnyDesk = $caminhosAnyDesk |
+        Where-Object {
+            Test-Path -LiteralPath $_ -PathType Leaf
+        } |
+        Select-Object -First 1
+
+    if ($caminhoAnyDesk) {
+        $anydeskLine = Get-Content -LiteralPath $caminhoAnyDesk -ErrorAction Stop |
+            Select-String -Pattern '^ad\.anynet\.id=' |
+            Select-Object -First 1
+
+        if ($anydeskLine) {
+            $partesAnyDesk = $anydeskLine.Line -split '=', 2
+
+            if ($partesAnyDesk.Count -eq 2) {
+                $anydesk = $partesAnyDesk[1].Trim()
+            }
+        }
+    }
+}
+catch {
+    $mensagemErro = 'Não foi possível consultar o AnyDesk. Detalhes: {0}' -f $_.Exception.Message
+    Write-Warning $mensagemErro
+}
 #======================================
 
 #===============================================
@@ -352,8 +448,8 @@ $inventario = [PSCustomObject]@{
 #================================================
 # Exportação CSV
 
-$caminhoCSV = 'C:\Inventario\inventario.csv'
-$pasta = Split-Path -Parent $caminhoCSV
+$pasta = $PastaSaida
+$caminhoCSV = Join-Path -Path $pasta -ChildPath 'inventario.csv'
 
 try {
     # Criar a pasta
