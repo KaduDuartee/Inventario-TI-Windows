@@ -9,7 +9,7 @@ Write-Host ""
 # Informações do Desktop
 
 try {
-    # Nome do Desktop
+# Nome do Desktop
      $pc = Get-CimInstance -ClassName Win32_ComputerSystem -ErrorAction Stop
 
 # Número de Série
@@ -44,11 +44,10 @@ $chaveMascarada = 'Não disponível'
 try {
 # Procura de chave instalada
 $produtosWindows = @(
-    Get-CimInstance -ClassName SoftwareLicensingProduct |
-        Where-Object {
-            $_.ApplicationID -eq '55c92734-d682-4d71-983e-d6ec3f16059f' -and
-            $_.PartialProductKey
-        }
+    Get-CimInstance -ClassName SoftwareLicensingProduct `
+        -Filter "ApplicationID = '55c92734-d682-4d71-983e-d6ec3f16059f' AND PartialProductKey IS NOT NULL" `
+        -Property Description, LicenseStatus, PartialProductKey `
+        -ErrorAction Stop
 )
 
 # Primeiro - Tentar encontrar uma licença ativa
@@ -100,26 +99,58 @@ catch {
 #======================================
 
 #======================================
-# Status da Rede
+# IP e Status de Rede
 
-$adaptador = Get-NetAdapter |
-Where-Object {
-    $_.Status -eq "Up" -and
+# Valores Fallback
+$rota                 = $null
+$rede                 = $null
+$adaptador            = $null
+$ipPrincipal          = 'Não disponível'
+$nomeAdaptador        = 'Não disponível'
+$statusAdaptador      = 'Não disponível'
+$velocidadeAdaptador  = 'Não disponível'
 
-    $_.LinkSpeed -ne "0 bps"
+try {
+    # Parâmetros para procurar a rota principal
+    $parametrosRota = @{
+        AddressFamily      = 'IPv4'
+        DestinationPrefix = '0.0.0.0/0'
+        State              = 'Alive'
+        ErrorAction        = 'Stop'
     }
-#======================================
 
-#======================================
-# IP 
+    # Rota padrão utilizada pelo Windows
+    $rota = Get-NetRoute @parametrosRota |
+        Sort-Object @{
+            Expression = {
+                $_.RouteMetric + $_.InterfaceMetric
+            }
+        } |
+        Select-Object -First 1
 
-$rota = Get-NetRoute -DestinationPrefix "0.0.0.0/0" |
-    Sort-Object RouteMetric | Select-Object -First 1
-
-$rede = Get-NetIPConfiguration |
-    Where-Object {
-        $_.InterfaceIndex -eq $rota.InterfaceIndex
+    if (-not $rota) {
+        throw 'Nenhuma rota padrão IPv4 foi encontrada.'
     }
+
+    # Utilização da mesma rota
+    $rede = Get-NetIPConfiguration -InterfaceIndex $rota.InterfaceIndex -ErrorAction Stop
+    $adaptador = Get-NetAdapter -InterfaceIndex $rota.InterfaceIndex -ErrorAction Stop
+
+    $enderecoIPv4 = $rede.IPv4Address |
+        Select-Object -First 1
+
+    if ($enderecoIPv4) {
+        $ipPrincipal = $enderecoIPv4.IPAddress
+    }
+
+    $nomeAdaptador       = $adaptador.Name
+    $statusAdaptador     = $adaptador.Status
+    $velocidadeAdaptador = $adaptador.LinkSpeed
+}
+catch {
+    $mensagemErro = 'Não foi possível identificar a interface principal de rede. Detalhes: {0}' -f $_.Exception.Message
+    Write-Warning $mensagemErro
+}
 #======================================
 
 #======================================
@@ -130,9 +161,9 @@ $office = Get-ItemProperty HKLM:\Software\Microsoft\Windows\CurrentVersion\Unins
     Where-Object { $_.DisplayName -like "*Microsoft 365*" -or $_.DisplayName -like "*Office*" } |
     Select-Object -First 1 -ExpandProperty DisplayName
 
- #=====================================
+#=====================================
  
- #=====================================
+#=====================================
 # ID do AnyDesk
 
 $anydesk = $null
@@ -157,8 +188,10 @@ Write-Host "Tipo de Chave      : $tipoChave"
 Write-Host "Status da Licenca  : $statusLicenca"
 Write-Host "Chave do Windows   : $chaveMascarada"
 Write-Host "Versao             : $($os.Version)"
-Write-Host "IP                 : $($rede.IPv4Address.IPAddress)"
-Write-Host "Status             : $($adaptador.Status)"
+Write-Host "Interface de Rede  : $nomeAdaptador"
+Write-Host "IP                 : $ipPrincipal"
+Write-Host "Status da Rede     : $statusAdaptador"
+Write-Host "Velocidade da Rede : $velocidadeAdaptador"
 Write-Host "Versao Office      : $office"        
 Write-Host "AnyDesk            : $anydesk"
 #================================================
@@ -176,7 +209,7 @@ $inventario = [PSCustomObject]@{
     SO               = $os.Caption
     Tipo_de_Chave    = $tipoChave
     Chave_Windows    = $chaveMascarada
-    IP               = $rede.IPv4Address.IPAddress
+    IP               = $ipPrincipal
     Versao_Office    = $office
     AnyDesk          = $anydesk
     DataColeta       = Get-Date -Format 'yyyy-MM-dd HH:mm'
