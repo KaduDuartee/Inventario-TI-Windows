@@ -1,12 +1,14 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 
-param(
-    [string]$PastaSaida
+param (
+    [string]$PastaSaida,
+
+    [switch]$Pausar
 )
 
 # Alerta para outros SO's
 if ($env:OS -ne 'Windows_NT') {
-    Write-Error 'Este script é compatível somente com sistemas Windows.'
+    Write-Error 'Esse script é compatível somente com sistemas Windows.'
     exit 1
 }
 
@@ -64,6 +66,36 @@ $pastaDadosRoaming = [Environment]::GetFolderPath(
 # Destino padrão quando nenhum caminho é informado
 if ([string]::IsNullOrWhiteSpace($PastaSaida)) {
     $PastaSaida = Join-Path -Path $pastaDadosLocais -ChildPath 'InventarioTI'
+}
+
+# Validação e normalização da pasta de saída
+$provedorSaida = $null
+$unidadeSaida = $null
+
+try {
+    $PastaSaida = (
+        $ExecutionContext.SessionState.Path.
+            GetUnresolvedProviderPathFromPSPath(
+                $PastaSaida,
+                [ref]$provedorSaida,
+                [ref]$unidadeSaida
+            )
+    )
+
+    if ($provedorSaida.Name -ne 'FileSystem') {
+        throw (
+            "O provedor '{0}' não é permitido. " +
+            'Informe uma pasta do sistema de arquivos.'
+        ) -f $provedorSaida.Name
+    }
+}
+catch {
+    $mensagemErro = (
+        'A pasta de saída informada é inválida. Detalhes: {0}'
+    ) -f $_.Exception.Message
+
+    Write-Error $mensagemErro
+    exit 1
 }
 
 Clear-Host
@@ -179,8 +211,46 @@ $statusAdaptador      = 'Não disponível'
 $velocidadeAdaptador  = 'Não disponível'
 $enderecoIPv4         = 'Não disponível'
 try {
+    if ($redeModernaDisponivel) {
     
-    # Procura adaptadores com TCP/IP habilitado
+    # Parâmetros para procurar a rota principal
+    $parametrosRota = @{
+        AddressFamily      = 'IPv4'
+        DestinationPrefix = '0.0.0.0/0'
+        State              = 'Alive'
+        ErrorAction        = 'Stop'
+    }
+
+    # Rota padrão utilizada pelo Windows
+    $rota = Get-NetRoute @parametrosRota |
+        Sort-Object @{
+            Expression = {
+                $_.RouteMetric + $_.InterfaceMetric
+            }
+        } |
+        Select-Object -First 1
+
+    if (-not $rota) {
+        throw 'Nenhuma rota padrão IPv4 foi encontrada.'
+    }
+
+    # Utilização da mesma rota
+    $rede = Get-NetIPConfiguration -InterfaceIndex $rota.InterfaceIndex -ErrorAction Stop
+    $adaptador = Get-NetAdapter -InterfaceIndex $rota.InterfaceIndex -ErrorAction Stop
+
+    $enderecoIPv4 = $rede.IPv4Address |
+        Select-Object -First 1
+
+    if ($enderecoIPv4) {
+        $ipPrincipal = $enderecoIPv4.IPAddress
+    }
+
+    $nomeAdaptador       = $adaptador.Name
+    $statusAdaptador     = $adaptador.Status
+    $velocidadeAdaptador = $adaptador.LinkSpeed
+}
+    else {
+        # Procura adaptadores com TCP/IP habilitado
     $parametrosConfiguracao = @{
         ClassName   = 'Win32_NetworkAdapterConfiguration'
         Filter      = 'IPEnabled = TRUE'
@@ -229,47 +299,115 @@ try {
     if ($null -eq $configuracaoSelecionada) {
         throw 'Não foi possível selecionar uma configuração de rede.'
     }
-    
-    # Parâmetros para procurar a rota principal
-    $parametrosRota = @{
-        AddressFamily      = 'IPv4'
-        DestinationPrefix = '0.0.0.0/0'
-        State              = 'Alive'
-        ErrorAction        = 'Stop'
+        # Relaciona a configuração de IP ao adaptador correspondente
+    $indiceAdaptador = [uint32]$configuracaoSelecionada.Index
+
+    $parametrosAdaptadorCim = @{
+        ClassName   = 'Win32_NetworkAdapter'
+        Filter      = "Index = $indiceAdaptador"
+        ErrorAction = 'Stop'
     }
 
-    # Rota padrão utilizada pelo Windows
-    $rota = Get-NetRoute @parametrosRota |
-        Sort-Object @{
-            Expression = {
-                $_.RouteMetric + $_.InterfaceMetric
+    $adaptadorCim = Get-CimInstance @parametrosAdaptadorCim |
+        Select-Object -First 1
+
+    if ($null -eq $adaptadorCim) {
+        throw 'O adaptador correspondente não foi encontrado.'
+    }
+
+    # Separa somente endereços IPv4
+    $enderecosIPv4 = @(
+        $configuracaoSelecionada.IPAddress |
+            Where-Object {
+                $_ -match '^(?:\d{1,3}\.){3}\d{1,3}$'
             }
+    )
+
+    # Evita APIPA, loopback e endereço vazio
+    $ipPrincipal = $enderecosIPv4 |
+        Where-Object {
+            $_ -notlike '169.254.*' -and
+            $_ -notlike '127.*' -and
+            $_ -ne '0.0.0.0'
         } |
         Select-Object -First 1
 
-    if (-not $rota) {
-        throw 'Nenhuma rota padrão IPv4 foi encontrada.'
+    if ([string]::IsNullOrWhiteSpace($ipPrincipal)) {
+        $ipPrincipal = $enderecosIPv4 |
+            Select-Object -First 1
     }
 
-    # Utilização da mesma rota
-    $rede = Get-NetIPConfiguration -InterfaceIndex $rota.InterfaceIndex -ErrorAction Stop
-    $adaptador = Get-NetAdapter -InterfaceIndex $rota.InterfaceIndex -ErrorAction Stop
-
-    $enderecoIPv4 = $rede.IPv4Address |
-        Select-Object -First 1
-
-    if ($enderecoIPv4) {
-        $ipPrincipal = $enderecoIPv4.IPAddress
+    if ([string]::IsNullOrWhiteSpace($ipPrincipal)) {
+        $ipPrincipal = 'Não disponível'
     }
 
-    $nomeAdaptador       = $adaptador.Name
-    $statusAdaptador     = $adaptador.Status
-    $velocidadeAdaptador = $adaptador.LinkSpeed
-}
-catch {
+    # Nome amigável do adaptador
+    $nomeAdaptador = [string]$adaptadorCim.NetConnectionID
+
+    if ([string]::IsNullOrWhiteSpace($nomeAdaptador)) {
+        $nomeAdaptador = [string]$adaptadorCim.Name
+    }
+
+    # Tradução do status CIM
+    $statusPorCodigo = @{
+        0  = 'Desconectado'
+        1  = 'Conectando'
+        2  = 'Conectado'
+        3  = 'Desconectando'
+        4  = 'Hardware ausente'
+        5  = 'Hardware desabilitado'
+        6  = 'Falha de hardware'
+        7  = 'Mídia desconectada'
+        8  = 'Autenticando'
+        9  = 'Autenticação concluída'
+        10 = 'Falha na autenticação'
+        11 = 'Endereço inválido'
+        12 = 'Credenciais necessárias'
+    }
+
+    if ($null -ne $adaptadorCim.NetConnectionStatus) {
+        $codigoStatus = [int]$adaptadorCim.NetConnectionStatus
+
+        if ($statusPorCodigo.ContainsKey($codigoStatus)) {
+            $statusAdaptador = $statusPorCodigo[$codigoStatus]
+        }
+        else {
+            $statusAdaptador = 'Desconhecido (código {0})' -f $codigoStatus
+        }
+    }
+
+    # Speed é informado em bits por segundo
+    if (
+        $null -ne $adaptadorCim.Speed -and
+        [double]$adaptadorCim.Speed -gt 0
+    ) {
+        $velocidadeEmBits = [double]$adaptadorCim.Speed
+
+        if ($velocidadeEmBits -ge 1000000000) {
+            $velocidadeAdaptador = '{0:0.##} Gbps' -f (
+                $velocidadeEmBits / 1000000000
+            )
+        }
+        elseif ($velocidadeEmBits -ge 1000000) {
+            $velocidadeAdaptador = '{0:0.##} Mbps' -f (
+                $velocidadeEmBits / 1000000
+            )
+        }
+        elseif ($velocidadeEmBits -ge 1000) {
+            $velocidadeAdaptador = '{0:0.##} Kbps' -f (
+                $velocidadeEmBits / 1000
+            )
+        }
+        else {
+            $velocidadeAdaptador = '{0:0} bps' -f $velocidadeEmBits
+             }
+        }
+     } 
+    }
+    catch {
     $mensagemErro = 'Não foi possível identificar a interface principal de rede. Detalhes: {0}' -f $_.Exception.Message
     Write-Warning $mensagemErro
-}
+ }
 #======================================
 
 #======================================
@@ -557,4 +695,6 @@ catch {
 #================================================
 
 
-Pause
+if ($Pausar) {
+    [void](Read-Host 'Pressione Enter para encerrar')
+}
