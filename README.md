@@ -4,6 +4,8 @@ Script desenvolvido em PowerShell para coletar informações de inventário de c
 
 Este projeto foi criado para estudo e portfólio, com foco em PowerShell, tratamento de erros, compatibilidade e segurança de dados.
 
+Além do caráter educacional, o script é utilizado internamente, em ambiente autorizado de uma empresa de pequeno porte, como apoio ao controle de ativos e dispositivos Windows. Dados reais desse ambiente não fazem parte do repositório.
+
 ## Funcionalidades
 
 O script coleta:
@@ -139,6 +141,8 @@ O CSV pode conter informações sensíveis sobre o equipamento, incluindo:
 - ID do AnyDesk.
 
 Não publique CSVs reais em commits, issues, capturas de tela ou exemplos.
+
+Arquivos gerados pelo inventário e configurações locais ou privadas não são versionados.
 
 O projeto não coleta:
 

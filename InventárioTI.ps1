@@ -637,10 +637,10 @@ $inventario = [PSCustomObject]@{
 #================================================
 # Exportação CSV
 
-$pasta = $PastaSaida
-$caminhoCSV = Join-Path -Path $pasta -ChildPath 'inventario.csv'
-
 try {
+    $pasta = $PastaSaida
+    $caminhoCSV = Join-Path -Path $pasta -ChildPath 'inventario.csv'
+
     # Criar a pasta
     if (-not (Test-Path -LiteralPath $pasta -PathType Container)) {
         New-Item -ItemType Directory -Path $pasta -ErrorAction Stop |
@@ -690,11 +690,12 @@ try {
 catch {
     $mensagemErro = 'Não foi possível salvar o inventário em CSV. Detalhes: {0}' -f $_.Exception.Message
     Write-Error $mensagemErro
+    exit 1
 }
-
-#================================================
-
 
 if ($Pausar) {
     [void](Read-Host 'Pressione Enter para encerrar')
 }
+
+exit 0
+#================================================
