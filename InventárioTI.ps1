@@ -177,8 +177,59 @@ $ipPrincipal          = 'Não disponível'
 $nomeAdaptador        = 'Não disponível'
 $statusAdaptador      = 'Não disponível'
 $velocidadeAdaptador  = 'Não disponível'
-
+$enderecoIPv4         = 'Não disponível'
 try {
+    
+    # Procura adaptadores com TCP/IP habilitado
+    $parametrosConfiguracao = @{
+        ClassName   = 'Win32_NetworkAdapterConfiguration'
+        Filter      = 'IPEnabled = TRUE'
+        ErrorAction = 'Stop'
+    }
+
+    $configuracoesIP = @(
+        Get-CimInstance @parametrosConfiguracao
+    )
+
+    if ($configuracoesIP.Count -eq 0) {
+        throw 'Nenhuma configuração de rede com IP habilitado foi encontrada.'
+    }
+
+    # Prefere adaptadores que possuem gateway padrão
+    $configuracoesComGateway = @(
+        $configuracoesIP |
+            Where-Object {
+                $_.DefaultIPGateway
+            }
+    )
+
+    if ($configuracoesComGateway.Count -gt 0) {
+        $configuracoesCandidatas = $configuracoesComGateway
+    }
+    else {
+        $configuracoesCandidatas = $configuracoesIP
+    }
+
+    # Menor métrica normalmente indica a conexão preferida
+    $criterioMetrica = @{
+        Expression = {
+            if ($null -eq $_.IPConnectionMetric) {
+                [uint32]::MaxValue
+            }
+            else {
+                [uint32]$_.IPConnectionMetric
+            }
+        }
+    }
+
+    $configuracaoSelecionada = $configuracoesCandidatas |
+        Sort-Object -Property $criterioMetrica |
+        Select-Object -First 1
+
+    if ($null -eq $configuracaoSelecionada) {
+        throw 'Não foi possível selecionar uma configuração de rede.'
+    }
+    
     # Parâmetros para procurar a rota principal
     $parametrosRota = @{
         AddressFamily      = 'IPv4'
