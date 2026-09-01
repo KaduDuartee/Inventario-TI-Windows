@@ -1,10 +1,34 @@
-﻿#Requires -Version 5.1
+﻿
+#================================================
+#Parâmetros Iniciais
+#Requires -Version 5.1
 
 param (
     [string]$PastaSaida,
 
     [switch]$Pausar
 )
+
+function ConvertTo-SafeCsvValue {
+    param (
+        [AllowNull()]
+        [object]$Value
+    )
+
+    if ($null -eq $Value) {
+        return $null
+    }
+
+    if ($Value -isnot [string]) {
+        return $Value
+    }
+
+    if ($Value -match '^[=+\-@\t\r\n＝＋－＠]') {
+        return "'$Value"
+    }
+
+    return $Value
+}
 
 # Alerta para outros SO's
 if ($env:OS -ne 'Windows_NT') {
@@ -97,11 +121,10 @@ catch {
     Write-Error $mensagemErro
     exit 1
 }
-
-Clear-Host
+#================================================
 
 Write-Host "===================================="
-Write-Host " INVENTÁRIO TI - TESTE 02"
+Write-Host " INVENTÁRIO TI "
 Write-Host "===================================="
 Write-Host ""
 
@@ -632,6 +655,19 @@ $inventario = [PSCustomObject]@{
     AnyDesk                  = $anydesk
     DataColeta               = Get-Date -Format 'yyyy-MM-dd HH:mm'
 }
+
+# Cria uma cópia protegida só para exportação
+$dadosSegurosCSV = [ordered]@{}
+
+foreach ($propriedade in $inventario.PSObject.Properties) {
+    $dadosSegurosCSV[$propriedade.Name] = ConvertTo-SafeCsvValue `
+        -Value $propriedade.Value
+}
+
+$inventarioParaCSV = [PSCustomObject]$dadosSegurosCSV
+
+$dadosSegurosCSV[$propriedade.Name] = ConvertTo-SafeCsvValue -Value $propriedade.Value
+
 #================================================
 
 #================================================
@@ -649,7 +685,7 @@ try {
 
     # Cabeçalho com o nome do objeto atual
     $cabecalhoEsperado = (
-        $inventario |
+        $inventarioParaCSV |
             ConvertTo-Csv -NoTypeInformation
     )[0]
 
@@ -681,7 +717,7 @@ try {
         $parametrosCSV.Append = $true
     }
 
-    $inventario |
+    $inventarioParaCSV |
         Export-Csv @parametrosCSV
 
         Write-Host ""
