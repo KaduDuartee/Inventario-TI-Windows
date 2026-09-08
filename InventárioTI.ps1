@@ -233,9 +233,13 @@ $nomeAdaptador        = 'Não disponível'
 $statusAdaptador      = 'Não disponível'
 $velocidadeAdaptador  = 'Não disponível'
 $enderecoIPv4         = 'Não disponível'
+
+$redeModernaColetada = $false
+
 try {
     if ($redeModernaDisponivel) {
-    
+        try {
+            
     # Parâmetros para procurar a rota principal
     $parametrosRota = @{
         AddressFamily      = 'IPv4'
@@ -264,15 +268,27 @@ try {
     $enderecoIPv4 = $rede.IPv4Address |
         Select-Object -First 1
 
-    if ($enderecoIPv4) {
-        $ipPrincipal = $enderecoIPv4.IPAddress
+                if (
+                -not $enderecoIPv4 -or
+                [string]::IsNullOrWhiteSpace($enderecoIPv4.IPAddress)
+            ) {
+                throw 'A consulta moderna não retornou um endereço IPv4.'
+            }
+
+            $ipPrincipal         = $enderecoIPv4.IPAddress
+            $nomeAdaptador       = $adaptador.Name
+            $statusAdaptador     = $adaptador.Status
+            $velocidadeAdaptador = $adaptador.LinkSpeed
+            $redeModernaColetada = $true
+        }
+        catch {
+            $mensagemErro = 'A consulta moderna falhou. Tentando CIM. Detalhes: {0}' -f $_.Exception.Message
+            Write-Warning $mensagemErro
+        }
     }
 
-    $nomeAdaptador       = $adaptador.Name
-    $statusAdaptador     = $adaptador.Status
-    $velocidadeAdaptador = $adaptador.LinkSpeed
-}
-    else {
+    if (-not $redeModernaColetada) {
+
         # Procura adaptadores com TCP/IP habilitado
     $parametrosConfiguracao = @{
         ClassName   = 'Win32_NetworkAdapterConfiguration'
@@ -660,13 +676,10 @@ $inventario = [PSCustomObject]@{
 $dadosSegurosCSV = [ordered]@{}
 
 foreach ($propriedade in $inventario.PSObject.Properties) {
-    $dadosSegurosCSV[$propriedade.Name] = ConvertTo-SafeCsvValue `
-        -Value $propriedade.Value
+    $dadosSegurosCSV[$propriedade.Name] = ConvertTo-SafeCsvValue -Value $propriedade.Value
 }
 
 $inventarioParaCSV = [PSCustomObject]$dadosSegurosCSV
-
-$dadosSegurosCSV[$propriedade.Name] = ConvertTo-SafeCsvValue -Value $propriedade.Value
 
 #================================================
 
