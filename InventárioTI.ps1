@@ -239,7 +239,7 @@ $redeModernaColetada = $false
 try {
     if ($redeModernaDisponivel) {
         try {
-            
+
     # Parâmetros para procurar a rota principal
     $parametrosRota = @{
         AddressFamily      = 'IPv4'
@@ -265,16 +265,34 @@ try {
     $rede = Get-NetIPConfiguration -InterfaceIndex $rota.InterfaceIndex -ErrorAction Stop
     $adaptador = Get-NetAdapter -InterfaceIndex $rota.InterfaceIndex -ErrorAction Stop
 
-    $enderecoIPv4 = $rede.IPv4Address |
+  # Mantém somente objetos que possuem um endereço registrado
+$enderecosIPv4Disponiveis = @(
+    $rede.IPv4Address |
+        Where-Object {
+            -not [string]::IsNullOrWhiteSpace($_.IPAddress)
+        }
+)
+
+# Prioriza endereços fora de APIPA, loopback e 0.0.0.0
+$enderecoIPv4 = $enderecosIPv4Disponiveis |
+    Where-Object {
+        $_.IPAddress -notlike '169.254.*' -and
+        $_.IPAddress -notlike '127.*' -and
+        $_.IPAddress -ne '0.0.0.0'
+    } |
+    Select-Object -First 1
+
+# Se houver endereços especiais, preserva um para diagnóstico
+if (-not $enderecoIPv4) {
+    $enderecoIPv4 = $enderecosIPv4Disponiveis |
         Select-Object -First 1
+}
 
                 if (
                 -not $enderecoIPv4 -or
                 [string]::IsNullOrWhiteSpace($enderecoIPv4.IPAddress)
             ) {
-                throw 'A consulta moderna não retornou um endereço IPv4.'
             }
-
             $ipPrincipal         = $enderecoIPv4.IPAddress
             $nomeAdaptador       = $adaptador.Name
             $statusAdaptador     = $adaptador.Status
