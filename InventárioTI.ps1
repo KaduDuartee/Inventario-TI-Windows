@@ -140,6 +140,7 @@ try {
 
 # Processador
     $cpu = Get-CimInstance -ClassName Win32_Processor -ErrorAction Stop
+    $nomesProcessadores = $cpu.Name -join '; '
 
 # Sistema Operacional
      $os = Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction Stop
@@ -643,7 +644,7 @@ Write-Host "Nome do computador : $($pc.Name)"
 Write-Host "Fabricante         : $($pc.Manufacturer)"
 Write-Host "Modelo             : $($pc.Model)"
 Write-Host "Numero de Serie    : $($bios.SerialNumber)"
-Write-Host "Processador        : $($cpu.Name)"
+Write-Host "Processador        : $nomesProcessadores"
 Write-Host "RAM (GB)           : $([Math]::Round($pc.TotalPhysicalMemory/1GB,2))"
 Write-Host "Sistema Operacional: $($os.Caption)"
 Write-Host "Tipo de Chave      : $tipoChave"
@@ -670,7 +671,7 @@ $inventario = [PSCustomObject]@{
     Fabricante               = $pc.Manufacturer
     Modelo                   = $pc.Model
     Numero_de_Serie          = $bios.SerialNumber
-    Processador              = $cpu.Name
+    Processador              = $nomesProcessadores
     RAM_GB                   = [Math]::Round($pc.TotalPhysicalMemory / 1GB, 2)
     SO                       = $os.Caption
     Versao_SO                = $os.Version
