@@ -28,7 +28,7 @@ O script coleta:
 ## Requisitos
 
 - Sistema operacional Windows;
-- PowerShell 5.1 ou superior;
+- PowerShell 5.1 - PowerShell 7 ainda não foi validado;
 - acesso de leitura às informações CIM, Registro e arquivos consultados.
 
 Privilégios administrativos normalmente não são necessários, mas algumas informações podem variar conforme as permissões da conta.
@@ -151,8 +151,6 @@ O projeto não coleta:
 - credenciais;
 - chave completa do Windows.
 
-Os arquivos CSV, logs, `.env` e o contexto privado do projeto são excluídos pelo `.gitignore`.
-
 ## Limitações conhecidas
 
 - compatível somente com Windows;
@@ -169,8 +167,6 @@ README.md
 AGENTS.md
 .gitignore
 ```
-
-O arquivo `AI_CONTEXT.private.md` é utilizado apenas localmente e não deve ser publicado.
 
 ## Próximas melhorias
 
