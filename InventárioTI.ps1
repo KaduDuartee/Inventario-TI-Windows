@@ -99,11 +99,11 @@ $unidadeSaida = $null
 try {
     $PastaSaida = (
         $ExecutionContext.SessionState.Path.
-            GetUnresolvedProviderPathFromPSPath(
-                $PastaSaida,
-                [ref]$provedorSaida,
-                [ref]$unidadeSaida
-            )
+        GetUnresolvedProviderPathFromPSPath(
+            $PastaSaida,
+            [ref]$provedorSaida,
+            [ref]$unidadeSaida
+        )
     )
 
     if ($provedorSaida.Name -ne 'FileSystem') {
@@ -132,24 +132,24 @@ Write-Host ""
 # Informações do Desktop
 
 try {
-# Nome do Desktop
-     $pc = Get-CimInstance -ClassName Win32_ComputerSystem -ErrorAction Stop
+    # Nome do Desktop
+    $pc = Get-CimInstance -ClassName Win32_ComputerSystem -ErrorAction Stop
 
-# Número de Série
+    # Número de Série
     $bios = Get-CimInstance -ClassName Win32_BIOS -ErrorAction Stop
 
-# Processador
+    # Processador
     $cpu = Get-CimInstance -ClassName Win32_Processor -ErrorAction Stop
     $nomesProcessadores = $cpu.Name -join '; '
 
-# Sistema Operacional
-     $os = Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction Stop
+    # Sistema Operacional
+    $os = Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction Stop
 }
 
 catch {
     Write-Error (
         "Não foi possível coletar as informações principais do computador. Detalhes: {0}" `
-        -f $_.Exception.Message
+            -f $_.Exception.Message
     )
 
     exit 1
@@ -161,63 +161,63 @@ catch {
 # Chave do Windows / Tipo de Chave
 
 # Valores Fallback
-$tipoChave      = 'Licença não identificada'
-$statusLicenca  = 'Não identificado'
+$tipoChave = 'Licença não identificada'
+$statusLicenca = 'Não identificado'
 $chaveMascarada = 'Não disponível'
 
 try {
-# Procura de chave instalada
-$produtosWindows = @(
-    Get-CimInstance -ClassName SoftwareLicensingProduct `
-        -Filter "ApplicationID = '55c92734-d682-4d71-983e-d6ec3f16059f' AND PartialProductKey IS NOT NULL" `
-        -Property Description, LicenseStatus, PartialProductKey `
-        -ErrorAction Stop
-)
+    # Procura de chave instalada
+    $produtosWindows = @(
+        Get-CimInstance -ClassName SoftwareLicensingProduct `
+            -Filter "ApplicationID = '55c92734-d682-4d71-983e-d6ec3f16059f' AND PartialProductKey IS NOT NULL" `
+            -Property Description, LicenseStatus, PartialProductKey `
+            -ErrorAction Stop
+    )
 
-# Primeiro - Tentar encontrar uma licença ativa
-$produtoWindows = $produtosWindows |
+    # Primeiro - Tentar encontrar uma licença ativa
+    $produtoWindows = $produtosWindows |
     Where-Object { $_.LicenseStatus -eq 1 } |
     Select-Object -First 1
 
-# Se nenhuma licença ativa for encontrada, utilizará a primeira licença instalada para mostrar seu problema
-if (-not $produtoWindows) {
-    $produtoWindows = $produtosWindows |
+    # Se nenhuma licença ativa for encontrada, utilizará a primeira licença instalada para mostrar seu problema
+    if (-not $produtoWindows) {
+        $produtoWindows = $produtosWindows |
         Select-Object -First 1
-}
-
-if ($produtoWindows) {
-    # Identificar o canal da chave pelos códigos da descrição
-    $tipoChave = switch -Regex ($produtoWindows.Description) {
-        'VOLUME_KMSCLIENT' { 'Volume - KMS'; break }
-        'VOLUME_KMS'       { 'Volume - KMS'; break }
-        'VOLUME_MAK'       { 'Volume - MAK'; break }
-        'OEM_DM'           { 'OEM - firmware/BIOS'; break }
-        'OEM_SLP'          { 'OEM - fabricante'; break }
-        'OEM_COA'          { 'OEM - certificado'; break }
-        'RETAIL'           { 'Retail'; break }
-        'TIMEBASED_EVAL'   { 'Avaliação'; break }
-        default            { 'Canal não identificado' }
     }
 
-    # Classificação do status da licença
-    $statusLicenca = switch ($produtoWindows.LicenseStatus) {
-        0 { 'Não licenciada' }
-        1 { 'Licenciada' }
-        2 { 'Período inicial de tolerância' }
-        3 { 'Período adicional de tolerância' }
-        4 { 'Licença não genuína' }
-        5 { 'Modo de notificação' }
-        6 { 'Tolerância estendida' }
-        default { 'Status desconhecido' }
-    }
+    if ($produtoWindows) {
+        # Identificar o canal da chave pelos códigos da descrição
+        $tipoChave = switch -Regex ($produtoWindows.Description) {
+            'VOLUME_KMSCLIENT' { 'Volume - KMS'; break }
+            'VOLUME_KMS' { 'Volume - KMS'; break }
+            'VOLUME_MAK' { 'Volume - MAK'; break }
+            'OEM_DM' { 'OEM - firmware/BIOS'; break }
+            'OEM_SLP' { 'OEM - fabricante'; break }
+            'OEM_COA' { 'OEM - certificado'; break }
+            'RETAIL' { 'Retail'; break }
+            'TIMEBASED_EVAL' { 'Avaliação'; break }
+            default { 'Canal não identificado' }
+        }
 
-    $chaveMascarada = "XXXXX-XXXXX-XXXXX-XXXXX-$($produtoWindows.PartialProductKey)"
+        # Classificação do status da licença
+        $statusLicenca = switch ($produtoWindows.LicenseStatus) {
+            0 { 'Não licenciada' }
+            1 { 'Licenciada' }
+            2 { 'Período inicial de tolerância' }
+            3 { 'Período adicional de tolerância' }
+            4 { 'Licença não genuína' }
+            5 { 'Modo de notificação' }
+            6 { 'Tolerância estendida' }
+            default { 'Status desconhecido' }
+        }
+
+        $chaveMascarada = "XXXXX-XXXXX-XXXXX-XXXXX-$($produtoWindows.PartialProductKey)"
     } 
 }
 catch {
     Write-Warning (
         "Não foi possível consultar o licenciamento do Windows. Detalhes: {0}" `
-        -f $_.Exception.Message
+            -f $_.Exception.Message
     )
 }
 #======================================
@@ -226,10 +226,10 @@ catch {
 # IP e Status de Rede
 
 # Valores Fallback
-$ipPrincipal          = 'Não disponível'
-$nomeAdaptador        = 'Não disponível'
-$statusAdaptador      = 'Não disponível'
-$velocidadeAdaptador  = 'Não disponível'
+$ipPrincipal = 'Não disponível'
+$nomeAdaptador = 'Não disponível'
+$statusAdaptador = 'Não disponível'
+$velocidadeAdaptador = 'Não disponível'
 
 $redeModernaColetada = $false
 
@@ -237,63 +237,63 @@ try {
     if ($redeModernaDisponivel) {
         try {
 
-    # Parâmetros para procurar a rota principal
-    $parametrosRota = @{
-        AddressFamily      = 'IPv4'
-        DestinationPrefix = '0.0.0.0/0'
-        State              = 'Alive'
-        ErrorAction        = 'Stop'
-    }
-
-    # Rota padrão utilizada pelo Windows
-    $rota = Get-NetRoute @parametrosRota |
-        Sort-Object @{
-            Expression = {
-                $_.RouteMetric + $_.InterfaceMetric
+            # Parâmetros para procurar a rota principal
+            $parametrosRota = @{
+                AddressFamily     = 'IPv4'
+                DestinationPrefix = '0.0.0.0/0'
+                State             = 'Alive'
+                ErrorAction       = 'Stop'
             }
-        } |
-        Select-Object -First 1
 
-    if (-not $rota) {
-        throw 'Nenhuma rota padrão IPv4 foi encontrada.'
-    }
+            # Rota padrão utilizada pelo Windows
+            $rota = Get-NetRoute @parametrosRota |
+            Sort-Object @{
+                Expression = {
+                    $_.RouteMetric + $_.InterfaceMetric
+                }
+            } |
+            Select-Object -First 1
 
-    # Utilização da mesma rota
-    $rede = Get-NetIPConfiguration -InterfaceIndex $rota.InterfaceIndex -ErrorAction Stop
-    $adaptador = Get-NetAdapter -InterfaceIndex $rota.InterfaceIndex -ErrorAction Stop
+            if (-not $rota) {
+                throw 'Nenhuma rota padrão IPv4 foi encontrada.'
+            }
 
-  # Mantém somente objetos que possuem um endereço registrado
-$enderecosIPv4Disponiveis = @(
-    $rede.IPv4Address |
-        Where-Object {
-            -not [string]::IsNullOrWhiteSpace($_.IPAddress)
-        }
-)
+            # Utilização da mesma rota
+            $rede = Get-NetIPConfiguration -InterfaceIndex $rota.InterfaceIndex -ErrorAction Stop
+            $adaptador = Get-NetAdapter -InterfaceIndex $rota.InterfaceIndex -ErrorAction Stop
 
-# Prioriza endereços fora de APIPA, loopback e 0.0.0.0
-$enderecoIPv4 = $enderecosIPv4Disponiveis |
-    Where-Object {
-        $_.IPAddress -notlike '169.254.*' -and
-        $_.IPAddress -notlike '127.*' -and
-        $_.IPAddress -ne '0.0.0.0'
-    } |
-    Select-Object -First 1
+            # Mantém somente objetos que possuem um endereço registrado
+            $enderecosIPv4Disponiveis = @(
+                $rede.IPv4Address |
+                Where-Object {
+                    -not [string]::IsNullOrWhiteSpace($_.IPAddress)
+                }
+            )
 
-# Se houver endereços especiais, preserva um para diagnóstico
-if (-not $enderecoIPv4) {
-    $enderecoIPv4 = $enderecosIPv4Disponiveis |
-        Select-Object -First 1
-}
+            # Prioriza endereços fora de APIPA, loopback e 0.0.0.0
+            $enderecoIPv4 = $enderecosIPv4Disponiveis |
+            Where-Object {
+                $_.IPAddress -notlike '169.254.*' -and
+                $_.IPAddress -notlike '127.*' -and
+                $_.IPAddress -ne '0.0.0.0'
+            } |
+            Select-Object -First 1
 
-               if (
-    -not $enderecoIPv4 -or
-    [string]::IsNullOrWhiteSpace($enderecoIPv4.IPAddress)
-) {
-    throw 'A consulta moderna não retornou um endereço IPv4.'
-}
-            $ipPrincipal         = $enderecoIPv4.IPAddress
-            $nomeAdaptador       = $adaptador.Name
-            $statusAdaptador     = $adaptador.Status
+            # Se houver endereços especiais, preserva um para diagnóstico
+            if (-not $enderecoIPv4) {
+                $enderecoIPv4 = $enderecosIPv4Disponiveis |
+                Select-Object -First 1
+            }
+
+            if (
+                -not $enderecoIPv4 -or
+                [string]::IsNullOrWhiteSpace($enderecoIPv4.IPAddress)
+            ) {
+                throw 'A consulta moderna não retornou um endereço IPv4.'
+            }
+            $ipPrincipal = $enderecoIPv4.IPAddress
+            $nomeAdaptador = $adaptador.Name
+            $statusAdaptador = $adaptador.Status
             $velocidadeAdaptador = $adaptador.LinkSpeed
             $redeModernaColetada = $true
         }
@@ -306,80 +306,80 @@ if (-not $enderecoIPv4) {
     if (-not $redeModernaColetada) {
 
         # Procura adaptadores com TCP/IP habilitado
-    $parametrosConfiguracao = @{
-        ClassName   = 'Win32_NetworkAdapterConfiguration'
-        Filter      = 'IPEnabled = TRUE'
-        ErrorAction = 'Stop'
-    }
+        $parametrosConfiguracao = @{
+            ClassName   = 'Win32_NetworkAdapterConfiguration'
+            Filter      = 'IPEnabled = TRUE'
+            ErrorAction = 'Stop'
+        }
 
-    $configuracoesIP = @(
-        Get-CimInstance @parametrosConfiguracao
-    )
+        $configuracoesIP = @(
+            Get-CimInstance @parametrosConfiguracao
+        )
 
-    if ($configuracoesIP.Count -eq 0) {
-        throw 'Nenhuma configuração de rede com IP habilitado foi encontrada.'
-    }
+        if ($configuracoesIP.Count -eq 0) {
+            throw 'Nenhuma configuração de rede com IP habilitado foi encontrada.'
+        }
 
-    # Prefere adaptadores que possuem gateway padrão
-    $configuracoesComGateway = @(
-        $configuracoesIP |
+        # Prefere adaptadores que possuem gateway padrão
+        $configuracoesComGateway = @(
+            $configuracoesIP |
             Where-Object {
                 $_.DefaultIPGateway
             }
-    )
+        )
 
-    if ($configuracoesComGateway.Count -gt 0) {
-        $configuracoesCandidatas = $configuracoesComGateway
-    }
-    else {
-        $configuracoesCandidatas = $configuracoesIP
-    }
+        if ($configuracoesComGateway.Count -gt 0) {
+            $configuracoesCandidatas = $configuracoesComGateway
+        }
+        else {
+            $configuracoesCandidatas = $configuracoesIP
+        }
 
-    # Menor métrica normalmente indica a conexão preferida
-    $criterioMetrica = @{
-        Expression = {
-            if ($null -eq $_.IPConnectionMetric) {
-                [uint32]::MaxValue
-            }
-            else {
-                [uint32]$_.IPConnectionMetric
+        # Menor métrica normalmente indica a conexão preferida
+        $criterioMetrica = @{
+            Expression = {
+                if ($null -eq $_.IPConnectionMetric) {
+                    [uint32]::MaxValue
+                }
+                else {
+                    [uint32]$_.IPConnectionMetric
+                }
             }
         }
-    }
 
-    $configuracaoSelecionada = $configuracoesCandidatas |
+        $configuracaoSelecionada = $configuracoesCandidatas |
         Sort-Object -Property $criterioMetrica |
         Select-Object -First 1
 
-    if ($null -eq $configuracaoSelecionada) {
-        throw 'Não foi possível selecionar uma configuração de rede.'
-    }
+        if ($null -eq $configuracaoSelecionada) {
+            throw 'Não foi possível selecionar uma configuração de rede.'
+        }
         # Relaciona a configuração de IP ao adaptador correspondente
-    $indiceAdaptador = [uint32]$configuracaoSelecionada.Index
+        $indiceAdaptador = [uint32]$configuracaoSelecionada.Index
 
-    $parametrosAdaptadorCim = @{
-        ClassName   = 'Win32_NetworkAdapter'
-        Filter      = "Index = $indiceAdaptador"
-        ErrorAction = 'Stop'
-    }
+        $parametrosAdaptadorCim = @{
+            ClassName   = 'Win32_NetworkAdapter'
+            Filter      = "Index = $indiceAdaptador"
+            ErrorAction = 'Stop'
+        }
 
-    $adaptadorCim = Get-CimInstance @parametrosAdaptadorCim |
+        $adaptadorCim = Get-CimInstance @parametrosAdaptadorCim |
         Select-Object -First 1
 
-    if ($null -eq $adaptadorCim) {
-        throw 'O adaptador correspondente não foi encontrado.'
-    }
+        if ($null -eq $adaptadorCim) {
+            throw 'O adaptador correspondente não foi encontrado.'
+        }
 
-    # Separa somente endereços IPv4
-    $enderecosIPv4 = @(
-        $configuracaoSelecionada.IPAddress |
+        # Separa somente endereços IPv4
+        $enderecosIPv4 = @(
+            $configuracaoSelecionada.IPAddress |
             Where-Object {
                 $_ -match '^(?:\d{1,3}\.){3}\d{1,3}$'
             }
-    )
+        )
 
-    # Evita APIPA, loopback e endereço vazio
-    $ipPrincipal = $enderecosIPv4 |
+        # Evita APIPA, loopback e endereço vazio
+        $ipPrincipal = $enderecosIPv4 |
         Where-Object {
             $_ -notlike '169.254.*' -and
             $_ -notlike '127.*' -and
@@ -387,93 +387,93 @@ if (-not $enderecoIPv4) {
         } |
         Select-Object -First 1
 
-    if ([string]::IsNullOrWhiteSpace($ipPrincipal)) {
-        $ipPrincipal = $enderecosIPv4 |
+        if ([string]::IsNullOrWhiteSpace($ipPrincipal)) {
+            $ipPrincipal = $enderecosIPv4 |
             Select-Object -First 1
-    }
-
-    if ([string]::IsNullOrWhiteSpace($ipPrincipal)) {
-        $ipPrincipal = 'Não disponível'
-    }
-
-    # Nome amigável do adaptador
-    $nomeAdaptador = [string]$adaptadorCim.NetConnectionID
-
-    if ([string]::IsNullOrWhiteSpace($nomeAdaptador)) {
-        $nomeAdaptador = [string]$adaptadorCim.Name
-    }
-
-    # Tradução do status CIM
-    $statusPorCodigo = @{
-        0  = 'Desconectado'
-        1  = 'Conectando'
-        2  = 'Conectado'
-        3  = 'Desconectando'
-        4  = 'Hardware ausente'
-        5  = 'Hardware desabilitado'
-        6  = 'Falha de hardware'
-        7  = 'Mídia desconectada'
-        8  = 'Autenticando'
-        9  = 'Autenticação concluída'
-        10 = 'Falha na autenticação'
-        11 = 'Endereço inválido'
-        12 = 'Credenciais necessárias'
-    }
-
-    if ($null -ne $adaptadorCim.NetConnectionStatus) {
-        $codigoStatus = [int]$adaptadorCim.NetConnectionStatus
-
-        if ($statusPorCodigo.ContainsKey($codigoStatus)) {
-            $statusAdaptador = $statusPorCodigo[$codigoStatus]
         }
-        else {
-            $statusAdaptador = 'Desconhecido (código {0})' -f $codigoStatus
-        }
-    }
 
-    # Speed é informado em bits por segundo
-    if (
-        $null -ne $adaptadorCim.Speed -and
-        [double]$adaptadorCim.Speed -gt 0
-    ) {
-        $velocidadeEmBits = [double]$adaptadorCim.Speed
+        if ([string]::IsNullOrWhiteSpace($ipPrincipal)) {
+            $ipPrincipal = 'Não disponível'
+        }
 
-        if ($velocidadeEmBits -ge 1000000000) {
-            $velocidadeAdaptador = '{0:0.##} Gbps' -f (
-                $velocidadeEmBits / 1000000000
-            )
+        # Nome amigável do adaptador
+        $nomeAdaptador = [string]$adaptadorCim.NetConnectionID
+
+        if ([string]::IsNullOrWhiteSpace($nomeAdaptador)) {
+            $nomeAdaptador = [string]$adaptadorCim.Name
         }
-        elseif ($velocidadeEmBits -ge 1000000) {
-            $velocidadeAdaptador = '{0:0.##} Mbps' -f (
-                $velocidadeEmBits / 1000000
-            )
+
+        # Tradução do status CIM
+        $statusPorCodigo = @{
+            0  = 'Desconectado'
+            1  = 'Conectando'
+            2  = 'Conectado'
+            3  = 'Desconectando'
+            4  = 'Hardware ausente'
+            5  = 'Hardware desabilitado'
+            6  = 'Falha de hardware'
+            7  = 'Mídia desconectada'
+            8  = 'Autenticando'
+            9  = 'Autenticação concluída'
+            10 = 'Falha na autenticação'
+            11 = 'Endereço inválido'
+            12 = 'Credenciais necessárias'
         }
-        elseif ($velocidadeEmBits -ge 1000) {
-            $velocidadeAdaptador = '{0:0.##} Kbps' -f (
-                $velocidadeEmBits / 1000
-            )
+
+        if ($null -ne $adaptadorCim.NetConnectionStatus) {
+            $codigoStatus = [int]$adaptadorCim.NetConnectionStatus
+
+            if ($statusPorCodigo.ContainsKey($codigoStatus)) {
+                $statusAdaptador = $statusPorCodigo[$codigoStatus]
+            }
+            else {
+                $statusAdaptador = 'Desconhecido (código {0})' -f $codigoStatus
+            }
         }
-        else {
-            $velocidadeAdaptador = '{0:0} bps' -f $velocidadeEmBits
-             }
+
+        # Speed é informado em bits por segundo
+        if (
+            $null -ne $adaptadorCim.Speed -and
+            [double]$adaptadorCim.Speed -gt 0
+        ) {
+            $velocidadeEmBits = [double]$adaptadorCim.Speed
+
+            if ($velocidadeEmBits -ge 1000000000) {
+                $velocidadeAdaptador = '{0:0.##} Gbps' -f (
+                    $velocidadeEmBits / 1000000000
+                )
+            }
+            elseif ($velocidadeEmBits -ge 1000000) {
+                $velocidadeAdaptador = '{0:0.##} Mbps' -f (
+                    $velocidadeEmBits / 1000000
+                )
+            }
+            elseif ($velocidadeEmBits -ge 1000) {
+                $velocidadeAdaptador = '{0:0.##} Kbps' -f (
+                    $velocidadeEmBits / 1000
+                )
+            }
+            else {
+                $velocidadeAdaptador = '{0:0} bps' -f $velocidadeEmBits
+            }
         }
-     } 
-    }
-    catch {
+    } 
+}
+catch {
     $mensagemErro = 'Não foi possível identificar a interface principal de rede. Detalhes: {0}' -f $_.Exception.Message
     Write-Warning $mensagemErro
- }
+}
 #======================================
 
 #======================================
 # Versão do Office
 
-    # Valores fallback
-    $office                 = 'Não identificado'
-    $idsOffice              = 'Não disponível'
-    $versaoOffice           = 'Não disponível'
-    $arquiteturaOffice      = 'Não disponível'
-    $tipoInstalacaoOffice   = 'Não identificado'
+# Valores fallback
+$office = 'Não identificado'
+$idsOffice = 'Não disponível'
+$versaoOffice = 'Não disponível'
+$arquiteturaOffice = 'Não disponível'
+$tipoInstalacaoOffice = 'Não identificado'
 
 try {
     # Locais de registro dos programas
@@ -514,21 +514,21 @@ try {
     # Procura de switchs e apps
     $produtosRegistro = @(
         $entradasInstaladas |
-            Where-Object {
-                $_.DisplayName -and
-                $_.DisplayName -match '^Microsoft (365|Office|Project|Visio|Access|Excel|Outlook|PowerPoint|Publisher|Word|OneNote|Skype for Business)' -and
-                $_.DisplayName -notmatch $itensAuxiliares
-            } |
-            Sort-Object DisplayName -Unique
+        Where-Object {
+            $_.DisplayName -and
+            $_.DisplayName -match '^Microsoft (365|Office|Project|Visio|Access|Excel|Outlook|PowerPoint|Publisher|Word|OneNote|Skype for Business)' -and
+            $_.DisplayName -notmatch $itensAuxiliares
+        } |
+        Sort-Object DisplayName -Unique
     )
 
     # Removedor do código de idioma do final do nome
     $nomesOffice = @(
         $produtosRegistro |
-            ForEach-Object {
-                $_.DisplayName -replace '\s+-\s+[a-z]{2}-[a-z]{2}$', ''
-            } |
-            Sort-Object -Unique
+        ForEach-Object {
+            $_.DisplayName -replace '\s+-\s+[a-z]{2}-[a-z]{2}$', ''
+        } |
+        Sort-Object -Unique
     )
 
     # Verificar primeiro o Click-to-Run
@@ -537,19 +537,19 @@ try {
     if (Test-Path -LiteralPath $caminhoClickToRun) {
         $configuracaoOffice = $null
 
-    try {
-    $configuracaoOffice = Get-ItemProperty -LiteralPath $caminhoClickToRun -ErrorAction Stop
-    }
-    catch {
-    $mensagemErro = 'Não foi possível ler a configuração Click-to-Run. Tentando o registro de desinstalação. Detalhes: {0}' -f $_.Exception.Message
-    Write-Warning $mensagemErro
-    }
+        try {
+            $configuracaoOffice = Get-ItemProperty -LiteralPath $caminhoClickToRun -ErrorAction Stop
+        }
+        catch {
+            $mensagemErro = 'Não foi possível ler a configuração Click-to-Run. Tentando o registro de desinstalação. Detalhes: {0}' -f $_.Exception.Message
+            Write-Warning $mensagemErro
+        }
 
         if ($configuracaoOffice.ProductReleaseIds) {
             $idsProduto = @(
                 $configuracaoOffice.ProductReleaseIds -split ',' |
-                    ForEach-Object { $_.Trim() } |
-                    Where-Object { $_ }
+                ForEach-Object { $_.Trim() } |
+                Where-Object { $_ }
             )
 
             $idsOffice = $idsProduto -join '; '
@@ -585,8 +585,8 @@ try {
 
         $versoesRegistro = @(
             $produtosRegistro.DisplayVersion |
-                Where-Object { $_ } |
-                Sort-Object -Unique
+            Where-Object { $_ } |
+            Sort-Object -Unique
         )
 
         if ($versoesRegistro.Count -gt 0) {
@@ -623,8 +623,8 @@ try {
             }
 
             $anydeskLine = Get-Content -LiteralPath $caminhoAnyDesk -ErrorAction Stop |
-                Select-String -Pattern '^ad\.anynet\.id=' |
-                Select-Object -First 1
+            Select-String -Pattern '^ad\.anynet\.id=' |
+            Select-Object -First 1
 
             if (-not $anydeskLine) {
                 continue
@@ -682,28 +682,28 @@ Write-Host "AnyDesk            : $anydesk"
 # Objeto Final
 
 $inventario = [PSCustomObject]@{
-    Nome                     = $pc.Name
-    Fabricante               = $pc.Manufacturer
-    Modelo                   = $pc.Model
-    Numero_de_Serie          = $bios.SerialNumber
-    Processador              = $nomesProcessadores
-    RAM_GB                   = [Math]::Round($pc.TotalPhysicalMemory / 1GB, 2)
-    SO                       = $os.Caption
-    Versao_SO                = $os.Version
-    Tipo_de_Chave            = $tipoChave
-    Status_da_Licenca        = $statusLicenca
-    Chave_Windows            = $chaveMascarada
-    Interface_de_Rede        = $nomeAdaptador
-    IP                       = $ipPrincipal
-    Status_da_Rede           = $statusAdaptador
-    Velocidade_da_Rede       = $velocidadeAdaptador
-    Produtos_Office          = $office
-    IDs_Office               = $idsOffice
-    Versao_Office            = $versaoOffice
-    Arquitetura_Office       = $arquiteturaOffice
-    Tipo_Instalacao_Office   = $tipoInstalacaoOffice
-    AnyDesk                  = $anydesk
-    DataColeta               = Get-Date -Format 'yyyy-MM-dd HH:mm'
+    Nome                   = $pc.Name
+    Fabricante             = $pc.Manufacturer
+    Modelo                 = $pc.Model
+    Numero_de_Serie        = $bios.SerialNumber
+    Processador            = $nomesProcessadores
+    RAM_GB                 = [Math]::Round($pc.TotalPhysicalMemory / 1GB, 2)
+    SO                     = $os.Caption
+    Versao_SO              = $os.Version
+    Tipo_de_Chave          = $tipoChave
+    Status_da_Licenca      = $statusLicenca
+    Chave_Windows          = $chaveMascarada
+    Interface_de_Rede      = $nomeAdaptador
+    IP                     = $ipPrincipal
+    Status_da_Rede         = $statusAdaptador
+    Velocidade_da_Rede     = $velocidadeAdaptador
+    Produtos_Office        = $office
+    IDs_Office             = $idsOffice
+    Versao_Office          = $versaoOffice
+    Arquitetura_Office     = $arquiteturaOffice
+    Tipo_Instalacao_Office = $tipoInstalacaoOffice
+    AnyDesk                = $anydesk
+    DataColeta             = Get-Date -Format 'yyyy-MM-dd HH:mm'
 }
 
 # Cria uma cópia protegida só para exportação
@@ -727,13 +727,13 @@ try {
     # Criar a pasta
     if (-not (Test-Path -LiteralPath $pasta -PathType Container)) {
         New-Item -ItemType Directory -Path $pasta -ErrorAction Stop |
-            Out-Null
+        Out-Null
     }
 
     # Cabeçalho com o nome do objeto atual
     $cabecalhoEsperado = (
         $inventarioParaCSV |
-            ConvertTo-Csv -NoTypeInformation
+        ConvertTo-Csv -NoTypeInformation
     )[0]
 
     # Verifica se o CSV existente utiliza a mesma estrutura
@@ -765,10 +765,10 @@ try {
     }
 
     $inventarioParaCSV |
-        Export-Csv @parametrosCSV
+    Export-Csv @parametrosCSV
 
-        Write-Host ""
-        Write-Host "Inventario salvo em: $caminhoCSV"
+    Write-Host ""
+    Write-Host "Inventario salvo em: $caminhoCSV"
 }
 catch {
     $mensagemErro = 'Não foi possível salvar o inventário em CSV. Detalhes: {0}' -f $_.Exception.Message
