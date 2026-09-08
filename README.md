@@ -119,7 +119,9 @@ O arquivo é salvo em UTF-8.
 
 O script tenta identificar a interface principal usando a rota padrão do Windows.
 
-Quando os comandos modernos de rede não estão disponíveis, utiliza um fallback baseado em classes CIM/WMI.
+Quando os comandos modernos estão indisponíveis, falham ou não retornam um IPv4, o script tenta uma coleta alternativa por CIM/WMI.
+
+Se a interface possuir vários endereços IPv4, o script prioriza endereços fora de APIPA, loopback e 0.0.0.0. Quando não existe outra opção, preserva um dos endereços disponíveis para diagnóstico.
 
 A velocidade apresentada é a velocidade do enlace entre o computador e o equipamento de rede. Ela não representa necessariamente a velocidade contratada da internet.
 
@@ -129,6 +131,8 @@ A velocidade apresentada é a velocidade do enlace entre o computador e o equipa
 - `1`: ocorreu uma falha fatal ou o CSV não pôde ser salvo.
 
 Esses códigos permitem integração com Agendador de Tarefas, Intune e ferramentas RMM.
+
+A saída `0` confirma que a coleta principal e a exportação foram concluídas. Consultas opcionais ainda podem gerar avisos e campos indisponíveis; então, esse código não garante que todas as informações foram obtidas.
 
 ## Segurança e privacidade
 
@@ -141,6 +145,8 @@ O CSV pode conter informações sensíveis sobre o equipamento, incluindo:
 - ID do AnyDesk.
 
 Não publique CSVs reais em commits, issues, capturas de tela ou exemplos.
+
+A exportação acrescenta um apóstrofo aos textos que começam com caracteres potencialmente interpretados como fórmulas. Essa medida reduz o risco de CSV Injection, mas não oferece proteção universal: o comportamento varia entre editores, e salvar e reabrir o CSV no Excel pode remover a proteção. Consulte as [limitações documentadas pela OWASP](https://owasp.org/www-community/attacks/CSV_Injection).
 
 Arquivos gerados pelo inventário e configurações locais ou privadas não são versionados.
 
@@ -179,3 +185,8 @@ AGENTS.md
 ## Uso responsável
 
 Execute o script somente em computadores próprios ou em equipamentos para os quais você possua autorização.
+
+## Licença
+
+Este projeto é distribuído sob a licença MIT.
+Consulte o arquivo [LICENSE](LICENSE) para conhecer os termos.
