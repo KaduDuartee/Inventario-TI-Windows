@@ -605,29 +605,39 @@ catch {
 $anydesk = 'Não disponível'
 
 try {
-    # AnyDesk instalado como serviço ou somente para o usuário
+    # Ordem de procura: configuração do serviço e depois do usuário
     $caminhosAnyDesk = @(
-        (Join-Path -Path $pastaDadosComuns -ChildPath 'AnyDesk\system.conf')
-        (Join-Path -Path $pastaDadosRoaming -ChildPath 'AnyDesk\system.conf')
+        (Join-Path -Path $pastaDadosComuns -ChildPath 'AnyDesk\system.conf' -ErrorAction Stop)
+        (Join-Path -Path $pastaDadosRoaming -ChildPath 'AnyDesk\system.conf' -ErrorAction Stop)
     )
 
-    $caminhoAnyDesk = $caminhosAnyDesk |
-        Where-Object {
-            Test-Path -LiteralPath $_ -PathType Leaf
-        } |
-        Select-Object -First 1
-
-    if ($caminhoAnyDesk) {
-        $anydeskLine = Get-Content -LiteralPath $caminhoAnyDesk -ErrorAction Stop |
-            Select-String -Pattern '^ad\.anynet\.id=' |
-            Select-Object -First 1
-
-        if ($anydeskLine) {
-            $partesAnyDesk = $anydeskLine.Line -split '=', 2
-
-            if ($partesAnyDesk.Count -eq 2) {
-                $anydesk = $partesAnyDesk[1].Trim()
+    foreach ($caminhoAnyDesk in $caminhosAnyDesk) {
+        try {
+            if (-not (Test-Path -LiteralPath $caminhoAnyDesk -PathType Leaf -ErrorAction Stop)) {
+                continue
             }
+
+            $anydeskLine = Get-Content -LiteralPath $caminhoAnyDesk -ErrorAction Stop |
+                Select-String -Pattern '^ad\.anynet\.id=' |
+                Select-Object -First 1
+
+            if (-not $anydeskLine) {
+                continue
+            }
+
+            $partesAnyDesk = $anydeskLine.Line -split '=', 2
+            $idEncontradoAnyDesk = $partesAnyDesk[1].Trim()
+
+            if ([string]::IsNullOrWhiteSpace($idEncontradoAnyDesk)) {
+                continue
+            }
+
+            $anydesk = $idEncontradoAnyDesk
+            break
+        }
+        catch {
+            $mensagemErro = 'Não foi possível ler "{0}". Detalhes: {1}' -f $caminhoAnyDesk, $_.Exception.Message
+            Write-Warning $mensagemErro
         }
     }
 }
