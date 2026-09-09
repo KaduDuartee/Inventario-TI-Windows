@@ -539,7 +539,15 @@ try {
     $caminhoClickToRun = 'HKLM:\SOFTWARE\Microsoft\Office\ClickToRun\Configuration'
 
     if (Test-Path -LiteralPath $caminhoClickToRun) {
-        $configuracaoOffice = Get-ItemProperty -LiteralPath $caminhoClickToRun -ErrorAction Stop
+        $configuracaoOffice = $null
+
+    try {
+    $configuracaoOffice = Get-ItemProperty -LiteralPath $caminhoClickToRun -ErrorAction Stop
+    }
+    catch {
+    $mensagemErro = 'Não foi possível ler a configuração Click-to-Run. Tentando o registro de desinstalação. Detalhes: {0}' -f $_.Exception.Message
+    Write-Warning $mensagemErro
+    }
 
         if ($configuracaoOffice.ProductReleaseIds) {
             $idsProduto = @(
