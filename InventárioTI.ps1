@@ -606,7 +606,7 @@ catch {
 #=====================================
 # ID do AnyDesk
 
-# Valores fallback
+# Valores Fallback
 $anydesk = 'Não disponível'
 
 try {
