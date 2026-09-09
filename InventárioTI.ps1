@@ -121,7 +121,6 @@ catch {
     Write-Error $mensagemErro
     exit 1
 }
-#================================================
 
 Write-Host "===================================="
 Write-Host " INVENTÁRIO TI "
@@ -158,7 +157,6 @@ catch {
     exit 1
 }
 
-#================================================
 
 #======================================
 # Chave do Windows / Tipo de Chave
@@ -223,7 +221,6 @@ catch {
             -f $_.Exception.Message
     )
 }
-#======================================
 
 #======================================
 # IP e Status de Rede
@@ -466,7 +463,6 @@ catch {
     $mensagemErro = 'Não foi possível identificar a interface principal de rede. Detalhes: {0}' -f $_.Exception.Message
     Write-Warning $mensagemErro
 }
-#======================================
 
 #======================================
 # Versão do Office
@@ -493,7 +489,7 @@ try {
         }
     }
 
-    # Não representantes dos programas
+    # Termos usados para excluir componentes auxiliares e atualizações do Office
     $itensAuxiliares = @(
         'Language Pack'
         'Pacote de Idiomas'
@@ -514,7 +510,7 @@ try {
         'Service Pack'
     ) -join '|'
 
-    # Procura de switchs e apps
+    # Seleciona produtos Office no registro e exclui os itens auxiliares
     $produtosRegistro = @(
         $entradasInstaladas |
         Where-Object {
@@ -579,7 +575,7 @@ try {
         }
     }
 
-    # Fallback para negativo no Click-to-Run
+    # Usa os dados do registro de desinstalação quando o Click-to-Run não foi identificado
     if (
         $tipoInstalacaoOffice -eq 'Não identificado' -and
         $nomesOffice.Count -gt 0
@@ -604,7 +600,6 @@ catch {
     Write-Warning $mensagemErro
 }
 
-#=====================================
  
 #=====================================
 # ID do AnyDesk
@@ -653,7 +648,6 @@ catch {
     $mensagemErro = 'Não foi possível consultar o AnyDesk. Detalhes: {0}' -f $_.Exception.Message
     Write-Warning $mensagemErro
 }
-#======================================
 
 #===============================================
 # LISTA DE ITENS
@@ -679,7 +673,6 @@ Write-Host "Versao Office      : $versaoOffice"
 Write-Host "Arquitetura Office : $arquiteturaOffice"
 Write-Host "Instalacao Office  : $tipoInstalacaoOffice"
 Write-Host "AnyDesk            : $anydesk"
-#================================================
 
 #================================================
 # Objeto Final
@@ -718,7 +711,6 @@ foreach ($propriedade in $inventario.PSObject.Properties) {
 
 $inventarioParaCSV = [PSCustomObject]$dadosSegurosCSV
 
-#================================================
 
 #================================================
 # Exportação CSV
@@ -784,4 +776,3 @@ if ($Pausar) {
 }
 
 exit 0
-#================================================
