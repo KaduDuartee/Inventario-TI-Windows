@@ -226,14 +226,10 @@ catch {
 # IP e Status de Rede
 
 # Valores Fallback
-$rota                 = $null
-$rede                 = $null
-$adaptador            = $null
 $ipPrincipal          = 'Não disponível'
 $nomeAdaptador        = 'Não disponível'
 $statusAdaptador      = 'Não disponível'
 $velocidadeAdaptador  = 'Não disponível'
-$enderecoIPv4         = 'Não disponível'
 
 $redeModernaColetada = $false
 
