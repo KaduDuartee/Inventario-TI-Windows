@@ -135,6 +135,9 @@ try {
     # Nome do Desktop
     $pc = Get-CimInstance -ClassName Win32_ComputerSystem -ErrorAction Stop
 
+    # Cálculo da RAM
+    $ramGB = [Math]::Round($pc.TotalPhysicalMemory / 1GB, 2)
+
     # Número de Série
     $bios = Get-CimInstance -ClassName Win32_BIOS -ErrorAction Stop
 
@@ -660,7 +663,7 @@ Write-Host "Fabricante         : $($pc.Manufacturer)"
 Write-Host "Modelo             : $($pc.Model)"
 Write-Host "Numero de Serie    : $($bios.SerialNumber)"
 Write-Host "Processador        : $nomesProcessadores"
-Write-Host "RAM (GB)           : $([Math]::Round($pc.TotalPhysicalMemory/1GB,2))"
+Write-Host "RAM (GB)           : $ramGB"
 Write-Host "Sistema Operacional: $($os.Caption)"
 Write-Host "Tipo de Chave      : $tipoChave"
 Write-Host "Status da Licenca  : $statusLicenca"
@@ -687,7 +690,7 @@ $inventario = [PSCustomObject]@{
     Modelo                 = $pc.Model
     Numero_de_Serie        = $bios.SerialNumber
     Processador            = $nomesProcessadores
-    RAM_GB                 = [Math]::Round($pc.TotalPhysicalMemory / 1GB, 2)
+    RAM_GB                 = $ramGB
     SO                     = $os.Caption
     Versao_SO              = $os.Version
     Tipo_de_Chave          = $tipoChave
