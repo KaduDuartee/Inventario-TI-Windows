@@ -289,11 +289,12 @@ if (-not $enderecoIPv4) {
         Select-Object -First 1
 }
 
-                if (
-                -not $enderecoIPv4 -or
-                [string]::IsNullOrWhiteSpace($enderecoIPv4.IPAddress)
-            ) {
-            }
+               if (
+    -not $enderecoIPv4 -or
+    [string]::IsNullOrWhiteSpace($enderecoIPv4.IPAddress)
+) {
+    throw 'A consulta moderna não retornou um endereço IPv4.'
+}
             $ipPrincipal         = $enderecoIPv4.IPAddress
             $nomeAdaptador       = $adaptador.Name
             $statusAdaptador     = $adaptador.Status
