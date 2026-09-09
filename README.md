@@ -170,6 +170,7 @@ O projeto não coleta:
 ```text
 InventárioTI.ps1
 README.md
+LICENSE
 AGENTS.md
 .gitignore
 ```
