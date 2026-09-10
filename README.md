@@ -38,8 +38,8 @@ Privilégios administrativos normalmente não são necessários, mas algumas inf
 Clone o repositório:
 
 ```powershell
-git clone <URL_DO_REPOSITORIO>
-cd InventarioTI
+git clone https://github.com/KaduDuartee/Inventario-TI-Windows.git
+cd Inventario-TI-Windows
 ```
 
 Execute o script:
