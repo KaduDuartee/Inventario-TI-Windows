@@ -1,0 +1,8 @@
+{
+  "name": "inventario-ti-api",
+  "version": "0.1.0",
+  "description": "API para o inventario de equipamentos Windows",
+  "private": true,
+  "type": "module",
+  "license": "MIT"
+}

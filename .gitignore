@@ -3,3 +3,13 @@
 *.log
 .env
 AI_CONTEXT.private.md
+
+# Dependencias instaladas pelo npm
+node_modules/
+
+# Configuracoes locais que podem conter segredos
+.env
+.env.*
+
+# Modelo de configuracao sem segredos
+!.env.example
