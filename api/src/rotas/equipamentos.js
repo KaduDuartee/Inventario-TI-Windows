@@ -16,6 +16,63 @@ function validarIdEquipamento(valor) {
     return null;
 }
 
+// Cadastra um equipamento pelo código de inventário.
+rotasEquipamentos.post('/', async (requisicao, resposta) => {
+    const corpo = requisicao.body;
+
+    // Aceita somente um objeto com o campo codigo_inventario.
+    if (
+        corpo === null ||
+        typeof corpo !== 'object' ||
+        Array.isArray(corpo) ||
+        Object.keys(corpo).length !== 1 ||
+        Object.keys(corpo)[0] !== 'codigo_inventario'
+    ) {
+        return resposta.status(400).json({
+            erro: 'Envie somente o campo codigo_inventario.'
+        });
+    }
+
+    const codigo = corpo.codigo_inventario;
+
+    // O código deve ter entre 1 e 50 caracteres permitidos.
+    if (
+        typeof codigo !== 'string' ||
+        codigo.length < 1 ||
+        codigo.length > 50 ||
+        !/^[A-Z0-9]/.test(codigo) ||
+        /[^A-Z0-9_-]/.test(codigo)
+    ) {
+        return resposta.status(400).json({
+            erro: 'O código deve usar de 1 a 50 letras maiúsculas, números, hífen ou sublinhado.'
+        });
+    }
+
+    try {
+        const [resultado] = await banco.execute(
+            'INSERT INTO equipamentos (codigo_inventario) VALUES (?)',
+            [codigo]
+        );
+
+        resposta.status(201).json({
+            id: resultado.insertId,
+            codigo_inventario: codigo
+        });
+    } catch (erro) {
+        if (erro.code === 'ER_DUP_ENTRY') {
+            return resposta.status(409).json({
+                erro: 'Esse código de inventário já está cadastrado.'
+            });
+        }
+
+        console.error('Falha ao cadastrar equipamento:', erro.code ?? 'SEM_CODIGO');
+
+        resposta.status(500).json({
+            erro: 'Não foi possível cadastrar o equipamento.'
+        });
+    }
+});
+
 // Lista até 100 equipamentos cadastrados.
 rotasEquipamentos.get('/', async (requisicao, resposta) => {
     try {
