@@ -8,6 +8,7 @@ O script PowerShell ainda exporta para CSV e não está integrado ao banco.
 
 - `001_criar_tabelas.sql`: cria as tabelas de equipamentos e coletas.
 - `exemplos/001_dados_ficticios.sql`: cadastra dois equipamentos fictícios e três coletas de demonstração.
+- `002_criar_tabela_dispositivos` : cria a identidade técnica vinculada a um equipamento e guarda apenas o hash do token
 
 ## Requisitos
 
@@ -43,6 +44,8 @@ USE inventario_demo;
 ```
 
 Se esse banco já existir, interrompa o procedimento e escolha outro nome para uma demonstração nova. Não apague um banco existente sem verificar seu conteúdo.
+
+Execute primeiro o `001_criar_tabela.sql` e depois o `002_criar_tabela_dispositivos.sql`. A segunda migração depende da tabela equipamentos criada pela primeira.
 
 ## Criar as tabelas
 
