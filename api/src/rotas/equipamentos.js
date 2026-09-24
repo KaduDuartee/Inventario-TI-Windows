@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { banco } from '../banco.js';
+import { isIP } from 'node:net';
 
 export const rotasEquipamentos = Router();
 
@@ -130,6 +131,134 @@ rotasEquipamentos.get('/:id', async (requisicao, resposta) => {
 
         resposta.status(500).json({
             erro: 'Não foi possível consultar o equipamento.'
+        });
+    }
+});
+
+// Registra uma coleta para um equipamento existente.
+rotasEquipamentos.post('/:id/coletas', async (requisicao, resposta) => {
+    const erroValidacaoId = validarIdEquipamento(requisicao.params.id);
+
+    if (erroValidacaoId !== null) {
+        return resposta.status(400).json({
+            erro: erroValidacaoId
+        });
+    }
+
+    const equipamentoId = Number(requisicao.params.id);
+    const corpo = requisicao.body;
+
+    if (
+        corpo === null ||
+        typeof corpo !== 'object' ||
+        Array.isArray(corpo)
+    ) {
+        return resposta.status(400).json({
+            erro: 'Envie um objeto JSON com os dados da coleta.'
+        });
+    }
+
+    const camposObrigatorios = [
+        'nome_computador',
+        'ram_gb',
+        'sistema_operacional'
+    ];
+    const camposPermitidos = [...camposObrigatorios, 'ipv4'];
+    const chavesRecebidas = Object.keys(corpo);
+
+    if (
+        camposObrigatorios.some(campo => !Object.hasOwn(corpo, campo)) ||
+        chavesRecebidas.some(campo => !camposPermitidos.includes(campo))
+    ) {
+        return resposta.status(400).json({
+            erro: 'Envie nome_computador, ram_gb e sistema_operacional. ipv4 é opcional.'
+        });
+    }
+
+    const nomeComputador = corpo.nome_computador;
+    const ramGb = corpo.ram_gb;
+    const sistemaOperacional = corpo.sistema_operacional;
+    const ipv4 = corpo.ipv4 ?? null;
+
+    if (
+        typeof nomeComputador !== 'string' ||
+        nomeComputador.trim().length === 0 ||
+        nomeComputador.length > 100 ||
+        typeof sistemaOperacional !== 'string' ||
+        sistemaOperacional.trim().length === 0 ||
+        sistemaOperacional.length > 150
+    ) {
+        return resposta.status(400).json({
+            erro: 'Nome do computador ou sistema operacional inválido.'
+        });
+    }
+
+    if (
+        typeof ramGb !== 'number' ||
+        !Number.isFinite(ramGb) ||
+        ramGb <= 0 ||
+        ramGb > 99999999.99 ||
+        Number(ramGb.toFixed(2)) !== ramGb
+    ) {
+        return resposta.status(400).json({
+            erro: 'ram_gb deve ser positivo e ter no máximo duas casas decimais.'
+        });
+    }
+
+    if (ipv4 !== null && (typeof ipv4 !== 'string' || isIP(ipv4) !== 4)) {
+        return resposta.status(400).json({
+            erro: 'ipv4 deve ser um endereço IPv4 válido ou null.'
+        });
+    }
+
+    try {
+        const [equipamentos] = await banco.execute(
+            'SELECT id FROM equipamentos WHERE id = ?',
+            [equipamentoId]
+        );
+
+        if (equipamentos.length === 0) {
+            return resposta.status(404).json({
+                erro: 'Equipamento não encontrado.'
+            });
+        }
+
+        const [resultado] = await banco.execute(
+            `INSERT INTO coletas (
+                equipamento_id,
+                nome_computador,
+                ram_gb,
+                sistema_operacional,
+                ipv4
+            ) VALUES (?, ?, ?, ?, ?)`,
+            [
+                equipamentoId,
+                nomeComputador.trim(),
+                ramGb,
+                sistemaOperacional.trim(),
+                ipv4
+            ]
+        );
+
+        resposta.status(201).json({
+            id: resultado.insertId,
+            equipamento_id: equipamentoId,
+            nome_computador: nomeComputador.trim(),
+            ram_gb: ramGb,
+            sistema_operacional: sistemaOperacional.trim(),
+            ipv4: ipv4
+        });
+    } catch (erro) {
+        if (erro.code === 'ER_NO_REFERENCED_ROW_2') {
+            return resposta.status(404).json({
+                erro: 'Equipamento não encontrado.'
+            });
+        }
+
+        console.error('Falha ao registrar coleta:', erro.code ?? 'SEM_CODIGO');
+
+        resposta.status(500).json({
+            erro: 'Não foi possível registrar a coleta.'
         });
     }
 });
