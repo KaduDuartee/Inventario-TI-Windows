@@ -4,5 +4,12 @@
   "description": "API para o inventario de equipamentos Windows",
   "private": true,
   "type": "module",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "express": "^5.2.1",
+    "mysql2": "^3.24.4"
+  },
+  "scripts": {
+    "start": "node src/server.js"
+  }
 }
