@@ -54,6 +54,52 @@ app.get('/equipamentos', async (requisicao, resposta) => {
     }
 });
 
+// Consulta um equipamento pelo ID.
+app.get('/equipamentos/:id', async (requisicao, resposta) => {
+    const idRecebido = requisicao.params.id;
+
+    // Aceita somente dígitos, começando de 1 a 9.
+    if (!/^[1-9][0-9]{0,9}$/.test(idRecebido)) {
+        return resposta.status(400).json({
+            erro: 'O ID deve ser um número inteiro positivo válido.'
+        });
+    }
+
+    const id = Number(idRecebido);
+
+    // Limite da coluna INT UNSIGNED utilizada no banco.
+    if (id > 4294967295) {
+        return resposta.status(400).json({
+            erro: 'O ID está fora do intervalo permitido.'
+        });
+    }
+
+    try {
+        const [equipamentos] = await banco.execute(
+            `SELECT id, codigo_inventario, data_cadastro
+             FROM equipamentos
+             WHERE id = ?`,
+            [id]
+        );
+
+        if (equipamentos.length === 0) {
+            return resposta.status(404).json({
+                erro: 'Equipamento não encontrado.'
+            });
+        }
+
+        resposta.json({
+            equipamento: equipamentos[0]
+        });
+    } catch (erro) {
+        console.error('Falha ao consultar equipamento:', erro.code ?? 'SEM_CODIGO');
+
+        resposta.status(500).json({
+            erro: 'Não foi possível consultar o equipamento.'
+        });
+    }
+});
+
 // Disponibiliza a API somente neste computador.
 app.listen(porta, endereco, () => {
     console.log(`API disponível em http://${endereco}:${porta}`);
