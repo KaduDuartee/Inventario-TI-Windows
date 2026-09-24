@@ -10,6 +10,7 @@
     "mysql2": "^3.24.4"
   },
   "scripts": {
-    "start": "node src/server.js"
+    "start": "node src/server.js",
+    "test:db": "node --env-file=.env src/teste-conexao.js"
   }
 }
