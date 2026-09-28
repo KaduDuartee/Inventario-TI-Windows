@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { banco } from '../banco.js';
 import { isIP } from 'node:net';
+import { createHash } from 'node:crypto';
 
 export const rotasEquipamentos = Router();
 
@@ -15,6 +16,51 @@ function validarIdEquipamento(valor) {
     }
 
     return null;
+}
+
+// Autentica um dispositivo pelo token e encontra seu equipamento vinculado.
+async function autenticarDispositivo(requisicao, resposta, proximo) {
+    const cabecalho = requisicao.get('authorization') ?? '';
+    const correspondencia = /^Bearer ([A-Za-z0-9_-]{43})$/i.exec(cabecalho);
+
+    if (!correspondencia) {
+        return resposta.status(401).json({
+            erro: 'Credencial de dispositivo ausente ou inválida.'
+        });
+    }
+
+    const token = correspondencia[1];
+    const tokenHash = createHash('sha256')
+        .update(token)
+        .digest('hex');
+
+    try {
+        const [dispositivos] = await banco.execute(
+            `SELECT equipamento_id
+             FROM dispositivos
+             WHERE token_hash = ?
+               AND ativo = TRUE`,
+            [tokenHash]
+        );
+
+        if (dispositivos.length === 0) {
+            return resposta.status(401).json({
+                erro: 'Credencial de dispositivo ausente ou inválida.'
+            });
+        }
+
+        requisicao.dispositivo = {
+            equipamentoId: Number(dispositivos[0].equipamento_id)
+        };
+
+        proximo();
+    } catch (erro) {
+        console.error('Falha ao autenticar dispositivo:', erro.code ?? 'SEM_CODIGO');
+
+        resposta.status(503).json({
+            erro: 'Não foi possível verificar a credencial do dispositivo.'
+        });
+    }
 }
 
 // Cadastra um equipamento pelo código de inventário.
@@ -136,7 +182,7 @@ rotasEquipamentos.get('/:id', async (requisicao, resposta) => {
 });
 
 // Registra uma coleta para um equipamento existente.
-rotasEquipamentos.post('/:id/coletas', async (requisicao, resposta) => {
+rotasEquipamentos.post('/:id/coletas', autenticarDispositivo, async (requisicao, resposta) => {
     const erroValidacaoId = validarIdEquipamento(requisicao.params.id);
 
     if (erroValidacaoId !== null) {
@@ -147,6 +193,12 @@ rotasEquipamentos.post('/:id/coletas', async (requisicao, resposta) => {
 
     const equipamentoId = Number(requisicao.params.id);
     const corpo = requisicao.body;
+
+    if (equipamentoId !== requisicao.dispositivo.equipamentoId) {
+        return resposta.status(403).json({
+            erro: 'Este dispositivo não está autorizado para esse equipamento.'
+        });
+    }
 
     if (
         corpo === null ||
