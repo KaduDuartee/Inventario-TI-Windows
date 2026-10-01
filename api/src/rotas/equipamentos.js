@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { banco } from '../banco.js';
 import { isIP } from 'node:net';
 import { createHash } from 'node:crypto';
+import { autenticarAdministrador } from '../middleware/autenticarAdministrador.js';
 
 export const rotasEquipamentos = Router();
 
@@ -64,7 +65,7 @@ async function autenticarDispositivo(requisicao, resposta, proximo) {
 }
 
 // Cadastra um equipamento pelo código de inventário.
-rotasEquipamentos.post('/', async (requisicao, resposta) => {
+rotasEquipamentos.post('/', autenticarAdministrador, async (requisicao, resposta) => {
     const corpo = requisicao.body;
 
     // Aceita somente um objeto com o campo codigo_inventario.
@@ -121,7 +122,7 @@ rotasEquipamentos.post('/', async (requisicao, resposta) => {
 });
 
 // Lista até 100 equipamentos cadastrados.
-rotasEquipamentos.get('/', async (requisicao, resposta) => {
+rotasEquipamentos.get('/', autenticarAdministrador, async (requisicao, resposta) => {
     try {
         const [equipamentos] = await banco.execute(
             `SELECT id, codigo_inventario, data_cadastro
@@ -143,7 +144,7 @@ rotasEquipamentos.get('/', async (requisicao, resposta) => {
 });
 
 // Consulta um equipamento pelo ID.
-rotasEquipamentos.get('/:id', async (requisicao, resposta) => {
+rotasEquipamentos.get('/:id', autenticarAdministrador, async (requisicao, resposta) => {
     const idRecebido = requisicao.params.id;
     const erroValidacao = validarIdEquipamento(idRecebido);
 
@@ -316,7 +317,7 @@ rotasEquipamentos.post('/:id/coletas', autenticarDispositivo, async (requisicao,
 });
 
 // Consulta as 100 coletas mais recentes de um equipamento.
-rotasEquipamentos.get('/:id/coletas', async (requisicao, resposta) => {
+rotasEquipamentos.get('/:id/coletas', autenticarAdministrador, async (requisicao, resposta) => {
     const idRecebido = requisicao.params.id;
     const erroValidacao = validarIdEquipamento(idRecebido);
 
