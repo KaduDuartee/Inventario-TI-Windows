@@ -187,6 +187,10 @@ AGENTS.md
 
 Execute o script somente em computadores próprios ou em equipamentos para os quais você possua autorização.
 
+## API
+
+Consulte [api/README.md](api/README.md) para configurar e executar a API localmente, incluindo as orientações sobre autenticação administrativa.
+
 ## Licença
 
 Este projeto é distribuído sob a licença MIT.
