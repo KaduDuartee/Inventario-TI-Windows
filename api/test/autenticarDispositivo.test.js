@@ -128,3 +128,28 @@ test('retorna 503 quando não consegue consultar o banco', async t => {
     assert.equal(proximoChamado, false);
     assert.equal(logErro.mock.calls.length, 1);
 });
+
+test('rejeita token malformado sem consultar o banco', async () => {
+    let consultaRealizada = false;
+
+    const bancoFalso = {
+        async execute() {
+            consultaRealizada = true;
+            return [[], []];
+        }
+    };
+
+    const resposta = criarResposta();
+    const middleware = criarAutenticarDispositivo(bancoFalso);
+
+    await middleware(
+        { get: () => 'Bearer curto' },
+        resposta,
+        () => {
+            assert.fail('A etapa seguinte não deveria ser chamada.');
+        }
+    );
+
+    assert.equal(resposta.codigoStatus, 401);
+    assert.equal(consultaRealizada, false);
+});
