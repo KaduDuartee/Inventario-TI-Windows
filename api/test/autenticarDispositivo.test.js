@@ -97,3 +97,34 @@ test('aceita token válido e associa o equipamento ao pedido', async () => {
     assert.deepEqual(requisicao.dispositivo, { equipamentoId: 7 });
     assert.equal(resposta.codigoStatus, null);
 });
+
+test('retorna 503 quando não consegue consultar o banco', async t => {
+    const logErro = t.mock.method(console, 'error', () => {});
+
+    const bancoFalso = {
+        async execute() {
+            const erro = new Error('Falha simulada');
+            erro.code = 'ECONNREFUSED';
+            throw erro;
+        }
+    };
+
+    const resposta = criarResposta();
+    const middleware = criarAutenticarDispositivo(bancoFalso);
+    let proximoChamado = false;
+
+    await middleware(
+        { get: () => `Bearer ${tokenTeste}` },
+        resposta,
+        () => {
+            proximoChamado = true;
+        }
+    );
+
+    assert.equal(resposta.codigoStatus, 503);
+    assert.deepEqual(resposta.corpo, {
+        erro: 'Não foi possível verificar a credencial do dispositivo.'
+    });
+    assert.equal(proximoChamado, false);
+    assert.equal(logErro.mock.calls.length, 1);
+});
