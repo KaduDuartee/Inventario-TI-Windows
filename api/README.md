@@ -28,6 +28,29 @@ Invoke-RestMethod -Uri 'http://127.0.0.1:3000/equipamentos' -Headers $cabecalhoA
 
 Se perder o token, gere outro, substitua o hash no `.env` e reinicie a API. Não coloque valores reais no README.
 
+## Cadastrar um dispositivo
+
+O cadastro exige a credencial administrativa criada acima. Envie o ID do equipamento e um nome para o dispositivo:
+
+```powershell
+$corpoDispositivo = @{
+    nome_dispositivo = 'PC-TESTE-001'
+} | ConvertTo-Json -Compress
+
+$respostaDispositivo = Invoke-RestMethod `
+    -Uri 'http://127.0.0.1:3000/equipamentos/1/dispositivo' `
+    -Method Post `
+    -Headers $cabecalhoAdmin `
+    -ContentType 'application/json' `
+    -Body $corpoDispositivo
+
+$respostaDispositivo.dispositivo
+```
+
+Em caso de sucesso, a API responde com HTTP `201`. O token do dispositivo fica em `$respostaDispositivo.token` e é retornado somente nessa resposta; guarde-o em local seguro. O banco armazena apenas o hash SHA-256, portanto não é possível recuperar o token depois. Não o imprima em capturas de tela, não o compartilhe e nunca o versione.
+
+Cada equipamento pode ter somente um dispositivo cadastrado. Uma nova tentativa para um equipamento que já tenha dispositivo retorna HTTP `409`; ela não recupera nem substitui o token existente.
+
 ## Configuração e execução local
 
 1. Crie o arquivo `.env` a partir de `.env.example`, sem substituir um `.env` que já exista.
