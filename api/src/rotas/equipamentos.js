@@ -4,6 +4,7 @@ import { isIP } from 'node:net';
 import { criarAutenticarDispositivo } from '../middleware/autenticarDispositivo.js';
 import { autenticarAdministrador } from '../middleware/autenticarAdministrador.js';
 import { dispositivoPodeEnviarParaEquipamento } from '../seguranca/vinculoDispositivo.js';
+import { criarCredencialDispositivo } from '../seguranca/credencialDispositivo.js';
 
 export const rotasEquipamentos = Router();
 
@@ -75,6 +76,84 @@ rotasEquipamentos.post('/', autenticarAdministrador, async (requisicao, resposta
 
         resposta.status(500).json({
             erro: 'Não foi possível cadastrar o equipamento.'
+        });
+    }
+});
+
+// Cadastra um dispositivo e entrega seu token uma única vez.
+rotasEquipamentos.post('/:id/dispositivo', autenticarAdministrador, async (requisicao, resposta) => {
+    const erroValidacaoId = validarIdEquipamento(requisicao.params.id);
+
+    if (erroValidacaoId !== null) {
+        return resposta.status(400).json({ erro: erroValidacaoId });
+    }
+
+    const corpo = requisicao.body;
+
+    if (
+        corpo === null ||
+        typeof corpo !== 'object' ||
+        Array.isArray(corpo) ||
+        Object.keys(corpo).length !== 1 ||
+        !Object.hasOwn(corpo, 'nome_dispositivo')
+    ) {
+        return resposta.status(400).json({
+            erro: 'Envie somente o campo nome_dispositivo.'
+        });
+    }
+
+    if (typeof corpo.nome_dispositivo !== 'string') {
+        return resposta.status(400).json({
+            erro: 'nome_dispositivo deve ser um texto de até 100 caracteres.'
+        });
+    }
+
+    const nomeDispositivo = corpo.nome_dispositivo.trim();
+
+    if (nomeDispositivo.length === 0 || nomeDispositivo.length > 100) {
+        return resposta.status(400).json({
+            erro: 'nome_dispositivo deve ter de 1 a 100 caracteres.'
+        });
+    }
+
+    const equipamentoId = Number(requisicao.params.id);
+    const credencial = criarCredencialDispositivo();
+
+    try {
+        await banco.execute(
+            `INSERT INTO dispositivos
+                (equipamento_id, nome_dispositivo, token_hash)
+             VALUES (?, ?, ?)`,
+            [equipamentoId, nomeDispositivo, credencial.tokenHash]
+        );
+
+        return resposta.status(201).json({
+            dispositivo: {
+                equipamento_id: equipamentoId,
+                nome_dispositivo: nomeDispositivo
+            },
+            token: credencial.token
+        });
+    } catch (erro) {
+        if (erro.code === 'ER_DUP_ENTRY') {
+            return resposta.status(409).json({
+                erro: 'Já existe um dispositivo cadastrado para esse equipamento.'
+            });
+        }
+
+        if (erro.code === 'ER_NO_REFERENCED_ROW_2') {
+            return resposta.status(404).json({
+                erro: 'Equipamento não encontrado.'
+            });
+        }
+
+        console.error(
+            'Falha ao cadastrar dispositivo:',
+            erro.code ?? 'SEM_CODIGO'
+        );
+
+        return resposta.status(503).json({
+            erro: 'Não foi possível cadastrar o dispositivo.'
         });
     }
 });
