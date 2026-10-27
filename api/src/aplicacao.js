@@ -1,8 +1,21 @@
 import express from 'express';
+import { rateLimit } from 'express-rate-limit';
 import { criarRotasEquipamentos } from './rotas/equipamentos.js';
 
 export function criarAplicacao(banco) {
     const app = express();
+
+    const limiteRequisicoesEquipamentos = rateLimit({
+        windowMs: 15 * 60 * 1000,
+        limit: 100,
+        standardHeaders: 'draft-8',
+        legacyHeaders: false,
+        message: {
+            erro: 'Limite de requisições atingido. Tente novamente mais tarde.'
+        }
+    });
+
+    app.use('/equipamentos', limiteRequisicoesEquipamentos);
 
     // Lê corpos JSON de até 10 KB.
     app.use(express.json({ limit: '10kb' }));

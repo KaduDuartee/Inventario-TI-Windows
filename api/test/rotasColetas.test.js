@@ -301,3 +301,42 @@ test('rejeita campos adicionais no JSON e não grava a coleta', async () => {
 
     assert.equal(consultas.length, 1);
 });
+
+test('retorna 429 quando o IP excede o limite de requisições', async () => {
+    const { banco, consultas } = criarBancoFalso();
+
+    await comApiDeTeste(banco, async urlBase => {
+        const resultados = await Promise.all(
+            Array.from({ length: 101 }, async () => {
+                const resposta = await fetch(`${urlBase}/equipamentos`);
+
+                return {
+                    status: resposta.status,
+                    corpo: await resposta.json()
+                };
+            })
+        );
+
+        assert.equal(
+            resultados.filter(resultado => resultado.status === 429).length,
+            1
+        );
+        assert.equal(
+            resultados.filter(resultado => resultado.status !== 429).length,
+            100
+        );
+
+        const respostaBloqueada = resultados.find(
+            resultado => resultado.status === 429
+        );
+
+        const respostaSaude = await fetch(`${urlBase}/saude`);
+        assert.equal(respostaSaude.status, 200);
+
+        assert.deepEqual(respostaBloqueada.corpo, {
+            erro: 'Limite de requisições atingido. Tente novamente mais tarde.'
+        });
+    });
+
+    assert.equal(consultas.length, 0);
+});
