@@ -153,3 +153,131 @@ test('exige credencial administrativa para revogar ou rotacionar dispositivo', a
         }
     }
 });
+
+test('rejeita ID inválido sem consultar o banco ao revogar ou rotacionar', async () => {
+    const hashAnterior = process.env.ADMIN_TOKEN_HASH;
+    process.env.ADMIN_TOKEN_HASH = hashTokenAdmin;
+
+    let consultas = 0;
+    const banco = {
+        async execute() {
+            consultas += 1;
+            return [{ affectedRows: 1 }, []];
+        }
+    };
+
+    try {
+        await comApiDeTeste(banco, async urlBase => {
+            const revogacao = await fetch(
+                `${urlBase}/equipamentos/abc/dispositivo`,
+                {
+                    method: 'DELETE',
+                    headers: { Authorization: `Bearer ${tokenAdmin}` }
+                }
+            );
+
+            const rotacao = await fetch(
+                `${urlBase}/equipamentos/abc/dispositivo/rotacionar`,
+                {
+                    method: 'POST',
+                    headers: { Authorization: `Bearer ${tokenAdmin}` }
+                }
+            );
+
+            assert.equal(revogacao.status, 400);
+            assert.equal(rotacao.status, 400);
+            assert.equal(consultas, 0);
+        });
+    } finally {
+        if (hashAnterior === undefined) {
+            delete process.env.ADMIN_TOKEN_HASH;
+        } else {
+            process.env.ADMIN_TOKEN_HASH = hashAnterior;
+        }
+    }
+});
+
+test('retorna 404 quando o dispositivo não existe ao revogar ou rotacionar', async () => {
+    const hashAnterior = process.env.ADMIN_TOKEN_HASH;
+    process.env.ADMIN_TOKEN_HASH = hashTokenAdmin;
+
+    let consultas = 0;
+    const banco = {
+        async execute() {
+            consultas += 1;
+            return [{ affectedRows: 0 }, []];
+        }
+    };
+
+    try {
+        await comApiDeTeste(banco, async urlBase => {
+            const cabecalhos = {
+                Authorization: `Bearer ${tokenAdmin}`
+            };
+
+            const revogacao = await fetch(
+                `${urlBase}/equipamentos/7/dispositivo`,
+                { method: 'DELETE', headers: cabecalhos }
+            );
+
+            const rotacao = await fetch(
+                `${urlBase}/equipamentos/7/dispositivo/rotacionar`,
+                { method: 'POST', headers: cabecalhos }
+            );
+
+            assert.equal(revogacao.status, 404);
+            assert.equal(rotacao.status, 404);
+            assert.equal(consultas, 2);
+        });
+    } finally {
+        if (hashAnterior === undefined) {
+            delete process.env.ADMIN_TOKEN_HASH;
+        } else {
+            process.env.ADMIN_TOKEN_HASH = hashAnterior;
+        }
+    }
+});
+
+test('retorna 503 se o banco falhar ao revogar ou rotacionar', async () => {
+    const hashAnterior = process.env.ADMIN_TOKEN_HASH;
+    process.env.ADMIN_TOKEN_HASH = hashTokenAdmin;
+
+    let consultas = 0;
+    const banco = {
+        async execute() {
+            consultas += 1;
+            throw new Error('Falha simulada no teste.');
+        }
+    };
+
+    try {
+        await comApiDeTeste(banco, async urlBase => {
+            const cabecalhos = {
+                Authorization: `Bearer ${tokenAdmin}`
+            };
+
+            const revogacao = await fetch(
+                `${urlBase}/equipamentos/7/dispositivo`,
+                { method: 'DELETE', headers: cabecalhos }
+            );
+
+            const rotacao = await fetch(
+                `${urlBase}/equipamentos/7/dispositivo/rotacionar`,
+                { method: 'POST', headers: cabecalhos }
+            );
+
+            assert.equal(revogacao.status, 503);
+            assert.equal(rotacao.status, 503);
+
+            const corpoRotacao = await rotacao.json();
+            assert.equal(Object.hasOwn(corpoRotacao, 'token'), false);
+            assert.equal(consultas, 2);
+        });
+    } finally {
+        if (hashAnterior === undefined) {
+            delete process.env.ADMIN_TOKEN_HASH;
+        } else {
+            process.env.ADMIN_TOKEN_HASH = hashAnterior;
+        }
+    }
+});
