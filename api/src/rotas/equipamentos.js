@@ -218,7 +218,89 @@ export function criarRotasEquipamentos(banco) {
         }
     });
 
-    // Registra uma coleta para um equipamento existente.
+    // Revoga a credencial ativa de um dispositivo.
+    rotasEquipamentos.delete('/:id/dispositivo', autenticarAdministrador, async (requisicao, resposta) => {
+        const erroValidacaoId = validarIdEquipamento(requisicao.params.id);
+
+        if (erroValidacaoId !== null) {
+            return resposta.status(400).json({ erro: erroValidacaoId });
+        }
+
+        const equipamentoId = Number(requisicao.params.id);
+
+        try {
+            const [resultado] = await banco.execute(
+                `UPDATE dispositivos
+                 SET ativo = FALSE
+                 WHERE equipamento_id = ?
+                   AND ativo = TRUE`,
+                [equipamentoId]
+            );
+
+            if (resultado.affectedRows === 0) {
+                return resposta.status(404).json({
+                    erro: 'Dispositivo ativo não encontrado para esse equipamento.'
+                });
+            }
+
+            return resposta.status(204).end();
+        } catch (erro) {
+            console.error(
+                'Falha ao revogar dispositivo:',
+                erro.code ?? 'SEM_CODIGO'
+            );
+
+            return resposta.status(503).json({
+                erro: 'Não foi possível revogar o dispositivo.'
+            });
+        }
+    });
+
+    // Gera uma nova credencial e invalida a anterior.
+    rotasEquipamentos.post('/:id/dispositivo/rotacionar', autenticarAdministrador, async (requisicao, resposta) => {
+        const erroValidacaoId = validarIdEquipamento(requisicao.params.id);
+
+        if (erroValidacaoId !== null) {
+            return resposta.status(400).json({ erro: erroValidacaoId });
+        }
+
+        const equipamentoId = Number(requisicao.params.id);
+        const credencial = criarCredencialDispositivo();
+
+        try {
+            const [resultado] = await banco.execute(
+                `UPDATE dispositivos
+                 SET token_hash = ?,
+                     ativo = TRUE
+                 WHERE equipamento_id = ?`,
+                [credencial.tokenHash, equipamentoId]
+            );
+
+            if (resultado.affectedRows === 0) {
+                return resposta.status(404).json({
+                    erro: 'Dispositivo não encontrado para esse equipamento.'
+                });
+            }
+
+            return resposta.status(200).json({
+                dispositivo: {
+                    equipamento_id: equipamentoId
+                },
+                token: credencial.token
+            });
+        } catch (erro) {
+            console.error(
+                'Falha ao rotacionar credencial do dispositivo:',
+                erro.code ?? 'SEM_CODIGO'
+            );
+
+            return resposta.status(503).json({
+                erro: 'Não foi possível rotacionar a credencial do dispositivo.'
+            });
+        }
+    });
+
+// Registra uma coleta para um equipamento existente.
     rotasEquipamentos.post('/:id/coletas', autenticarDispositivo, async (requisicao, resposta) => {
         const erroValidacaoId = validarIdEquipamento(requisicao.params.id);
 
