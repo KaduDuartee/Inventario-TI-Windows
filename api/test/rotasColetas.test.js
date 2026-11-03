@@ -20,18 +20,26 @@ function criarBancoFalso({
     dispositivoAtivo = true,
     equipamentoVinculado = 7,
     equipamentoExiste = true,
-    erroInsercao = null
+    erroInsercao = null,
+    revogarAposAutenticacao = false
 } = {}) {
     const consultas = [];
+    let dispositivoAtivoAtual = dispositivoAtivo;
+    let simularRevogacao = revogarAposAutenticacao;
 
     const banco = {
         async execute(sql, parametros = []) {
             consultas.push({ sql, parametros });
 
             if (/FROM dispositivos/i.test(sql)) {
-                const dispositivos = dispositivoAtivo
+                const dispositivos = dispositivoAtivoAtual
                     ? [{ equipamento_id: String(equipamentoVinculado) }]
                     : [];
+
+                if (simularRevogacao) {
+                    dispositivoAtivoAtual = false;
+                    simularRevogacao = false;
+                }
 
                 return [dispositivos, []];
             }
@@ -55,6 +63,14 @@ function criarBancoFalso({
             throw new Error(`Consulta inesperada no teste: ${sql}`);
         }
     };
+
+        banco.getConnection = async () => ({
+        beginTransaction: async () => {},
+        execute: (sql, parametros = []) => banco.execute(sql, parametros),
+        commit: async () => {},
+        rollback: async () => {},
+        release: () => {}
+    });
 
     return { banco, consultas };
 }
@@ -119,10 +135,12 @@ test('registra coleta válida para o equipamento vinculado', async () => {
         });
     });
 
-    assert.equal(consultas.length, 3);
+    assert.equal(consultas.length, 4);
     assert.deepEqual(consultas[0].parametros, [hashTokenValido]);
-    assert.match(consultas[2].sql, /VALUES \(\?, \?, \?, \?, \?\)/);
-    assert.deepEqual(consultas[2].parametros, [
+    assert.match(consultas[1].sql, /FOR UPDATE/i);
+    assert.deepEqual(consultas[1].parametros, [7, hashTokenValido]);
+    assert.match(consultas[3].sql, /VALUES \(\?, \?, \?, \?, \?\)/);
+    assert.deepEqual(consultas[3].parametros, [
         7,
         'PC-API-TESTE',
         16,
@@ -206,7 +224,7 @@ test('retorna 404 quando o equipamento não existe', async () => {
         });
     });
 
-    assert.equal(consultas.length, 2);
+    assert.equal(consultas.length, 3);
 });
 
 test('retorna erro genérico se o banco falhar ao inserir', async t => {
@@ -226,7 +244,7 @@ test('retorna erro genérico se o banco falhar ao inserir', async t => {
         assert.doesNotMatch(JSON.stringify(corpo), /Detalhe interno|ER_SIMULADO/);
     });
 
-    assert.equal(consultas.length, 3);
+    assert.equal(consultas.length, 4);
     assert.equal(logErro.mock.calls.length, 1);
 });
 
@@ -339,4 +357,21 @@ test('retorna 429 quando o IP excede o limite de requisições', async () => {
     });
 
     assert.equal(consultas.length, 0);
+});
+
+test('não grava coleta se o dispositivo for revogado após autenticação', async () => {
+    const { banco, consultas } = criarBancoFalso({
+        revogarAposAutenticacao: true
+    });
+
+    await comApiDeTeste(banco, async urlBase => {
+        const resposta = await enviarColeta(urlBase);
+
+        assert.equal(resposta.status, 401);
+    });
+
+    assert.equal(
+        consultas.filter(consulta => /INSERT INTO coletas/i.test(consulta.sql)).length,
+        0
+    );
 });

@@ -385,19 +385,48 @@ export function criarRotasEquipamentos(banco) {
             });
         }
 
+                let conexao;
+        let transacaoIniciada = false;
+
         try {
-            const [equipamentos] = await banco.execute(
+            conexao = await banco.getConnection();
+            await conexao.beginTransaction();
+            transacaoIniciada = true;
+
+            const [dispositivosAtivos] = await conexao.execute(
+                `SELECT id
+                 FROM dispositivos
+                 WHERE equipamento_id = ?
+                   AND token_hash = ?
+                   AND ativo = TRUE
+                 FOR UPDATE`,
+                [equipamentoId, requisicao.dispositivo.tokenHash]
+            );
+
+            if (dispositivosAtivos.length === 0) {
+                await conexao.rollback();
+                transacaoIniciada = false;
+
+                return resposta.status(401).json({
+                    erro: 'Credencial de dispositivo ausente ou inválida.'
+                });
+            }
+
+            const [equipamentos] = await conexao.execute(
                 'SELECT id FROM equipamentos WHERE id = ?',
                 [equipamentoId]
             );
 
             if (equipamentos.length === 0) {
+                await conexao.rollback();
+                transacaoIniciada = false;
+
                 return resposta.status(404).json({
                     erro: 'Equipamento não encontrado.'
                 });
             }
 
-            const [resultado] = await banco.execute(
+            const [resultado] = await conexao.execute(
                 `INSERT INTO coletas (
                     equipamento_id,
                     nome_computador,
@@ -414,26 +443,42 @@ export function criarRotasEquipamentos(banco) {
                 ]
             );
 
-            resposta.status(201).json({
+            await conexao.commit();
+            transacaoIniciada = false;
+
+            return resposta.status(201).json({
                 id: resultado.insertId,
                 equipamento_id: equipamentoId,
                 nome_computador: nomeComputador.trim(),
                 ram_gb: ramGb,
                 sistema_operacional: sistemaOperacional.trim(),
-                ipv4: ipv4
+                ipv4
             });
         } catch (erro) {
+            if (transacaoIniciada) {
+                try {
+                    await conexao.rollback();
+                } catch {
+                    // Preserva o erro original se o rollback também falhar.
+                }
+            }
+
             if (erro.code === 'ER_NO_REFERENCED_ROW_2') {
                 return resposta.status(404).json({
                     erro: 'Equipamento não encontrado.'
                 });
             }
 
-            console.error('Falha ao registrar coleta:', erro.code ?? 'SEM_CODIGO');
+            console.error(
+                'Falha ao registrar coleta:',
+                erro.code ?? 'SEM_CODIGO'
+            );
 
-            resposta.status(500).json({
+            return resposta.status(500).json({
                 erro: 'Não foi possível registrar a coleta.'
             });
+        } finally {
+            conexao?.release();
         }
     });
 

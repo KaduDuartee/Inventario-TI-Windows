@@ -94,7 +94,7 @@ test('aceita token válido e associa o equipamento ao pedido', async () => {
     });
 
     assert.equal(proximoChamado, true);
-    assert.deepEqual(requisicao.dispositivo, { equipamentoId: 7 });
+    assert.deepEqual(requisicao.dispositivo, { equipamentoId: 7, tokenHash: hashEsperado });
     assert.equal(resposta.codigoStatus, null);
 });
 

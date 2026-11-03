@@ -43,7 +43,8 @@ export function criarAutenticarDispositivo(banco) {
         }
 
         requisicao.dispositivo = {
-            equipamentoId: Number(dispositivos[0].equipamento_id)
+            equipamentoId: Number(dispositivos[0].equipamento_id),
+            tokenHash
         };
 
         return proximo();
