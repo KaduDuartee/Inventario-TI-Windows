@@ -31,6 +31,14 @@ function criarBancoFalso({
         async execute(sql, parametros = []) {
             consultas.push({ sql, parametros });
 
+            if (/INSERT INTO coleta_office_ids/i.test(sql)) {
+                return [{ affectedRows: parametros.length / 2 }, []];
+            }
+
+            if (/INSERT INTO coleta_office_produtos/i.test(sql)) {
+                return [{ affectedRows: parametros.length / 6 }, []];
+            }
+
             if (/FROM dispositivos/i.test(sql)) {
                 const dispositivos = dispositivoAtivoAtual
                     ? [{ equipamento_id: String(equipamentoVinculado) }]
@@ -58,6 +66,10 @@ function criarBancoFalso({
                 }
 
                 return [{ insertId: 73 }, []];
+            }
+
+            if (/INSERT INTO coleta_office_ids/i.test(sql)) {
+                return [{ affectedRows: parametros.length / 2 }, []];
             }
 
             throw new Error(`Consulta inesperada no teste: ${sql}`);
@@ -137,15 +149,17 @@ test('registra coleta válida para o equipamento vinculado', async () => {
 
     assert.equal(consultas.length, 4);
     assert.deepEqual(consultas[0].parametros, [hashTokenValido]);
-    assert.match(consultas[1].sql, /FOR UPDATE/i);
-    assert.deepEqual(consultas[1].parametros, [7, hashTokenValido]);
-    assert.match(consultas[3].sql, /VALUES \(\?, \?, \?, \?, \?\)/);
+    assert.match(consultas[2].sql, /SELECT id FROM equipamentos/i);
+    assert.deepEqual(consultas[2].parametros, [7]);
+
+    assert.equal((consultas[3].sql.match(/\?/g) ?? []).length, 16);
     assert.deepEqual(consultas[3].parametros, [
         7,
         'PC-API-TESTE',
         16,
         'Windows 11 Pro',
-        '192.0.2.44'
+        '192.0.2.44',
+        ...Array(11).fill(null)
     ]);
 });
 
@@ -313,7 +327,7 @@ test('rejeita campos adicionais no JSON e não grava a coleta', async () => {
 
         assert.equal(resposta.status, 400);
         assert.deepEqual(await resposta.json(), {
-            erro: 'Envie nome_computador, ram_gb e sistema_operacional. ipv4 é opcional.'
+            erro: 'Envie os campos obrigatórios e somente campos reconhecidos.'
         });
     });
 
@@ -374,4 +388,124 @@ test('não grava coleta se o dispositivo for revogado após autenticação', asy
         consultas.filter(consulta => /INSERT INTO coletas/i.test(consulta.sql)).length,
         0
     );
+});
+
+test('registra produtos Office junto com a coleta', async () => {
+    const { banco, consultas } = criarBancoFalso();
+
+    const produtoOffice = {
+        nome_produto: 'Microsoft Office Professional Plus 2016',
+        id_produto: 'ProPlusVolume',
+        versao: '16.0.20326.20132',
+        arquitetura: 'x86',
+        tipo_instalacao: 'Click-to-Run'
+    };
+
+    await comApiDeTeste(banco, async urlBase => {
+        const resposta = await enviarColeta(urlBase, {
+            corpo: {
+                ...coletaValida,
+                office_produtos: [produtoOffice],
+                office_ids: [
+            'ProjectProVolume',
+            'ProPlusVolume',
+            'VisioProVolume'
+                ]
+            }
+        });
+
+        assert.equal(resposta.status, 201);
+
+        const insercaoIds = consultas.find(
+            consulta => /INSERT INTO coleta_office_ids/i.test(consulta.sql)
+        );
+
+        assert.ok(insercaoIds);
+        assert.deepEqual(insercaoIds.parametros, [
+            73, 'ProjectProVolume',
+            73, 'ProPlusVolume',
+            73, 'VisioProVolume'
+        ]);
+
+    });
+
+    const insercaoOffice = consultas.find(
+        consulta => /INSERT INTO coleta_office_produtos/i.test(consulta.sql)
+    );
+
+    assert.ok(insercaoOffice);
+    assert.deepEqual(insercaoOffice.parametros, [
+        73,
+        produtoOffice.nome_produto,
+        produtoOffice.id_produto,
+        produtoOffice.versao,
+        produtoOffice.arquitetura,
+        produtoOffice.tipo_instalacao
+    ]);
+});
+
+test('rejeita produtos Office inválidos sem gravar coleta', async () => {
+    const casosInvalidos = [
+        [{ nome_produto: '' }],
+        [{ nome_produto: 'Produto de teste', campo_extra: 'não permitido' }],
+        Array.from({ length: 51 }, (_, indice) => ({
+            nome_produto: `Produto ${indice + 1}`
+        }))
+    ];
+
+    for (const officeProdutos of casosInvalidos) {
+        const { banco, consultas } = criarBancoFalso();
+
+        await comApiDeTeste(banco, async urlBase => {
+            const resposta = await enviarColeta(urlBase, {
+                corpo: {
+                    ...coletaValida,
+                    office_produtos: officeProdutos
+                }
+            });
+
+            assert.equal(resposta.status, 400);
+        });
+
+        assert.equal(
+            consultas.some(consulta =>
+                /INSERT INTO (coletas|coleta_office_produtos)/i.test(consulta.sql)
+            ),
+            false
+        );
+    }
+});
+
+test('rejeita IDs Office inválidos sem gravar coleta', async () => {
+    const casosInvalidos = [
+        [''],
+        ['ID com espaços'],
+        ['ID com acento-é'],
+        [null],
+        Array.from({ length: 51 }, (_, indice) => `Produto${indice}`)
+    ];
+
+    for (const officeIds of casosInvalidos) {
+        const { banco, consultas } = criarBancoFalso();
+
+        await comApiDeTeste(banco, async urlBase => {
+            const resposta = await enviarColeta(urlBase, {
+                corpo: {
+                    ...coletaValida,
+                    office_ids: officeIds
+                }
+            });
+
+            assert.equal(resposta.status, 400);
+        });
+
+        assert.equal(
+            consultas.some(consulta =>
+                /INSERT INTO (coletas|coleta_office_produtos|coleta_office_ids)/i.test(
+                    consulta.sql
+                )
+            ),
+            false
+        );
+    }
 });

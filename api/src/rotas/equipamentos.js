@@ -333,19 +333,64 @@ export function criarRotasEquipamentos(banco) {
         }
 
         const camposObrigatorios = [
-            'nome_computador',
-            'ram_gb',
-            'sistema_operacional'
+        'nome_computador',
+        'ram_gb',
+        'sistema_operacional'
         ];
-        const camposPermitidos = [...camposObrigatorios, 'ipv4'];
+
+        const limitesTextoOpcional = {
+        fabricante: 100,
+        modelo: 100,
+        numero_serie: 100,
+        processador: 255,
+        versao_so: 50,
+        tipo_chave: 50,
+        status_licenca: 60,
+        interface_rede: 100,
+        status_rede: 30,
+        velocidade_rede: 30,
+        anydesk_id: 50
+        };
+
+        const camposPermitidos = [
+            ...camposObrigatorios,
+            'ipv4',
+            ...Object.keys(limitesTextoOpcional),
+            'office_produtos',
+            'office_ids'
+        ];
+
         const chavesRecebidas = Object.keys(corpo);
+
+        const officeIds = corpo.office_ids ?? [];
+
+            if (!Array.isArray(officeIds) || officeIds.length > 50) {
+                return resposta.status(400).json({
+                    erro: 'office_ids deve ser uma lista com até 50 IDs.'
+                });
+            }
+
+        const officeIdsNormalizados = [];
+
+        for (const id of officeIds) {
+             if (
+                typeof id !== 'string' ||
+                 !/^[\x21-\x7E]{1,100}$/.test(id.trim())
+             ) {
+                  return resposta.status(400).json({
+                      erro: 'Cada ID Office deve conter de 1 a 100 caracteres ASCII sem espaços.'
+                });
+                }
+
+                officeIdsNormalizados.push(id.trim());
+            }
 
         if (
             camposObrigatorios.some(campo => !Object.hasOwn(corpo, campo)) ||
             chavesRecebidas.some(campo => !camposPermitidos.includes(campo))
         ) {
             return resposta.status(400).json({
-                erro: 'Envie nome_computador, ram_gb e sistema_operacional. ipv4 é opcional.'
+                erro: 'Envie os campos obrigatórios e somente campos reconhecidos.'
             });
         }
 
@@ -353,6 +398,82 @@ export function criarRotasEquipamentos(banco) {
         const ramGb = corpo.ram_gb;
         const sistemaOperacional = corpo.sistema_operacional;
         const ipv4 = corpo.ipv4 ?? null;
+
+        const dadosOpcionais = {};
+
+        for (const [campo, limite] of Object.entries(limitesTextoOpcional)) {
+            const valor = corpo[campo] ?? null;
+
+            if (valor !== null && typeof valor !== 'string') {
+                return resposta.status(400).json({
+                    erro: `${campo} deve ser texto ou null.`
+                });
+            }
+
+            if (valor !== null && valor.length > limite) {
+                return resposta.status(400).json({
+                    erro: `${campo} excede o limite de ${limite} caracteres.`
+                });
+            }
+
+            dadosOpcionais[campo] = valor?.trim() || null;
+        }
+
+        const officeProdutos = corpo.office_produtos ?? [];
+
+        if (!Array.isArray(officeProdutos) || officeProdutos.length > 50) {
+            return resposta.status(400).json({
+                erro: 'office_produtos deve ser uma lista com até 50 produtos.'
+            });
+        }
+
+        const limitesOffice = {
+            id_produto: 100,
+            versao: 50,
+            arquitetura: 20,
+            tipo_instalacao: 50
+        };
+
+        const officeProdutosNormalizados = [];
+
+        for (const produto of officeProdutos) {
+            if (
+                produto === null ||
+                typeof produto !== 'object' ||
+                Array.isArray(produto) ||
+                Object.keys(produto).some(campo =>
+                    !['nome_produto', ...Object.keys(limitesOffice)].includes(campo)
+                ) ||
+                typeof produto.nome_produto !== 'string' ||
+                produto.nome_produto.trim().length === 0 ||
+                produto.nome_produto.length > 150
+            ) {
+                return resposta.status(400).json({
+                    erro: 'Cada produto Office deve ter um nome válido e somente campos reconhecidos.'
+                });
+            }
+
+            const produtoNormalizado = {
+                nome_produto: produto.nome_produto.trim()
+            };
+
+            for (const [campo, limite] of Object.entries(limitesOffice)) {
+                const valor = produto[campo] ?? null;
+
+                if (
+                    valor !== null &&
+                    (typeof valor !== 'string' || valor.length > limite)
+                ) {
+                    return resposta.status(400).json({
+                        erro: `office_produtos.${campo} deve ser texto ou null, com até ${limite} caracteres.`
+                    });
+                }
+
+                produtoNormalizado[campo] = valor?.trim() || null;
+            }
+
+            officeProdutosNormalizados.push(produtoNormalizado);
+        }
 
         if (
             typeof nomeComputador !== 'string' ||
@@ -427,21 +548,87 @@ export function criarRotasEquipamentos(banco) {
             }
 
             const [resultado] = await conexao.execute(
-                `INSERT INTO coletas (
-                    equipamento_id,
-                    nome_computador,
-                    ram_gb,
-                    sistema_operacional,
-                    ipv4
-                ) VALUES (?, ?, ?, ?, ?)`,
-                [
-                    equipamentoId,
-                    nomeComputador.trim(),
-                    ramGb,
-                    sistemaOperacional.trim(),
-                    ipv4
-                ]
-            );
+            `INSERT INTO coletas (
+                equipamento_id,
+                nome_computador,
+                ram_gb,
+                sistema_operacional,
+                ipv4,
+                fabricante,
+                modelo,
+                numero_serie,
+                processador,
+                versao_so,
+                tipo_chave,
+                status_licenca,
+                interface_rede,
+                status_rede,
+                velocidade_rede,
+                anydesk_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+                equipamentoId,
+                nomeComputador.trim(),
+                ramGb,
+                sistemaOperacional.trim(),
+                ipv4,
+                dadosOpcionais.fabricante,
+                dadosOpcionais.modelo,
+                dadosOpcionais.numero_serie,
+                dadosOpcionais.processador,
+                dadosOpcionais.versao_so,
+                dadosOpcionais.tipo_chave,
+                dadosOpcionais.status_licenca,
+                dadosOpcionais.interface_rede,
+                dadosOpcionais.status_rede,
+                dadosOpcionais.velocidade_rede,
+                dadosOpcionais.anydesk_id
+            ]
+        );
+
+            if (officeProdutosNormalizados.length > 0) {
+    const gruposValores = officeProdutosNormalizados
+        .map(() => '(?, ?, ?, ?, ?, ?)')
+        .join(', ');
+
+    const parametrosOffice = officeProdutosNormalizados.flatMap(produto => [
+        resultado.insertId,
+        produto.nome_produto,
+        produto.id_produto,
+        produto.versao,
+        produto.arquitetura,
+        produto.tipo_instalacao
+    ]);
+
+    await conexao.execute(
+        `INSERT INTO coleta_office_produtos (
+            coleta_id,
+            nome_produto,
+            id_produto,
+            versao,
+            arquitetura,
+            tipo_instalacao
+        ) VALUES ${gruposValores}`,
+        parametrosOffice
+    );
+}
+
+    if (officeIdsNormalizados.length > 0) {
+    const gruposIds = officeIdsNormalizados
+        .map(() => '(?, ?)')
+        .join(', ');
+
+    const parametrosIds = officeIdsNormalizados.flatMap(releaseId => [
+        resultado.insertId,
+        releaseId
+    ]);
+
+    await conexao.execute(
+        `INSERT INTO coleta_office_ids (coleta_id, release_id)
+         VALUES ${gruposIds}`,
+        parametrosIds
+    );
+}
 
             await conexao.commit();
             transacaoIniciada = false;

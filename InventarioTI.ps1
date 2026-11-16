@@ -6,8 +6,14 @@
 param (
     [string]$PastaSaida,
 
-    [switch]$Pausar
+    [switch]$Pausar,
+
+    [switch]$Json
 )
+
+if ($Json) {
+    $WarningPreference = 'SilentlyContinue'
+}
 
 function ConvertTo-SafeCsvValue {
     param (
@@ -122,10 +128,13 @@ catch {
     exit 1
 }
 
-Write-Host "===================================="
-Write-Host " INVENTÁRIO TI "
-Write-Host "===================================="
-Write-Host ""
+
+if(-not $Json) {
+    Write-Host "===================================="
+    Write-Host " INVENTÁRIO TI "
+    Write-Host "===================================="
+    Write-Host ""
+}
 
 #================================================
 # Informações do Desktop
@@ -213,7 +222,7 @@ try {
         }
 
         $chaveMascarada = "XXXXX-XXXXX-XXXXX-XXXXX-$($produtoWindows.PartialProductKey)"
-    } 
+    }
 }
 catch {
     Write-Warning (
@@ -431,7 +440,7 @@ try {
             }
         }
 
-        # Speed é informado em bits por segundo
+        # A velocidade é informada em bits por segundo.
         if (
             $null -ne $adaptadorCim.Speed -and
             [double]$adaptadorCim.Speed -gt 0
@@ -457,7 +466,7 @@ try {
                 $velocidadeAdaptador = '{0:0} bps' -f $velocidadeEmBits
             }
         }
-    } 
+    }
 }
 catch {
     $mensagemErro = 'Não foi possível identificar a interface principal de rede. Detalhes: {0}' -f $_.Exception.Message
@@ -473,6 +482,9 @@ $idsOffice = 'Não disponível'
 $versaoOffice = 'Não disponível'
 $arquiteturaOffice = 'Não disponível'
 $tipoInstalacaoOffice = 'Não identificado'
+
+$produtosRegistro = @()
+$idsProduto = @()
 
 try {
     # Locais de registro dos programas
@@ -600,7 +612,7 @@ catch {
     Write-Warning $mensagemErro
 }
 
- 
+
 #=====================================
 # ID do AnyDesk
 
@@ -652,27 +664,31 @@ catch {
 #===============================================
 # LISTA DE ITENS
 
-Write-Host "Nome do computador : $($pc.Name)"
-Write-Host "Fabricante         : $($pc.Manufacturer)"
-Write-Host "Modelo             : $($pc.Model)"
-Write-Host "Numero de Serie    : $($bios.SerialNumber)"
-Write-Host "Processador        : $nomesProcessadores"
-Write-Host "RAM (GB)           : $ramGB"
-Write-Host "Sistema Operacional: $($os.Caption)"
-Write-Host "Tipo de Chave      : $tipoChave"
-Write-Host "Status da Licenca  : $statusLicenca"
-Write-Host "Chave do Windows   : $chaveMascarada"
-Write-Host "Versao             : $($os.Version)"
-Write-Host "Interface de Rede  : $nomeAdaptador"
-Write-Host "IP                 : $ipPrincipal"
-Write-Host "Status da Rede     : $statusAdaptador"
-Write-Host "Velocidade da Rede : $velocidadeAdaptador"
-Write-Host "Produtos Office    : $office"
-Write-Host "IDs Office         : $idsOffice"
-Write-Host "Versao Office      : $versaoOffice"
-Write-Host "Arquitetura Office : $arquiteturaOffice"
-Write-Host "Instalacao Office  : $tipoInstalacaoOffice"
-Write-Host "AnyDesk            : $anydesk"
+if (-not $Json) {
+
+    Write-Host "Nome do computador : $($pc.Name)"
+    Write-Host "Fabricante         : $($pc.Manufacturer)"
+    Write-Host "Modelo             : $($pc.Model)"
+    Write-Host "Numero de Serie    : $($bios.SerialNumber)"
+    Write-Host "Processador        : $nomesProcessadores"
+    Write-Host "RAM (GB)           : $ramGB"
+    Write-Host "Sistema Operacional: $($os.Caption)"
+    Write-Host "Tipo de Chave      : $tipoChave"
+    Write-Host "Status da Licenca  : $statusLicenca"
+    Write-Host "Chave do Windows   : $chaveMascarada"
+    Write-Host "Versao             : $($os.Version)"
+    Write-Host "Interface de Rede  : $nomeAdaptador"
+    Write-Host "IP                 : $ipPrincipal"
+    Write-Host "Status da Rede     : $statusAdaptador"
+    Write-Host "Velocidade da Rede : $velocidadeAdaptador"
+    Write-Host "Produtos Office    : $office"
+    Write-Host "IDs Office         : $idsOffice"
+    Write-Host "Versao Office      : $versaoOffice"
+    Write-Host "Arquitetura Office : $arquiteturaOffice"
+    Write-Host "Instalacao Office  : $tipoInstalacaoOffice"
+    Write-Host "AnyDesk            : $anydesk"
+
+}
 
 #================================================
 # Objeto Final
@@ -702,69 +718,154 @@ $inventario = [PSCustomObject]@{
     DataColeta             = Get-Date -Format 'yyyy-MM-dd HH:mm'
 }
 
-# Cria uma cópia protegida só para exportação
-$dadosSegurosCSV = [ordered]@{}
+if ($Json) {
+    $ipv4ParaAPI = $null
+    $enderecoIP = $null
 
-foreach ($propriedade in $inventario.PSObject.Properties) {
-    $dadosSegurosCSV[$propriedade.Name] = ConvertTo-SafeCsvValue -Value $propriedade.Value
+    if (
+        $ipPrincipal -and
+        [System.Net.IPAddress]::TryParse(
+            [string]$ipPrincipal,
+            [ref]$enderecoIP
+        ) -and
+        $enderecoIP.AddressFamily -eq
+            [System.Net.Sockets.AddressFamily]::InterNetwork
+    ) {
+        $ipv4ParaAPI = $enderecoIP.ToString()
+    }
+
+    $officeProdutosParaAPI = @(
+        foreach ($produto in $produtosRegistro) {
+            $nomeProduto = [string](
+                $produto.DisplayName -replace '\s+-\s+[a-z]{2}-[a-z]{2}$', ''
+            )
+
+            if (-not [string]::IsNullOrWhiteSpace($nomeProduto)) {
+                $versaoProduto = $null
+                if ($produto.DisplayVersion) {
+                    $versaoProduto = [string]$produto.DisplayVersion
+                }
+
+                $arquiteturaProduto = $null
+                if ($arquiteturaOffice -in @('x86', 'x64')) {
+                    $arquiteturaProduto = $arquiteturaOffice
+                }
+
+                $tipoInstalacaoProduto = $null
+                if (
+                    $tipoInstalacaoOffice -in @(
+                        'Click-to-Run',
+                        'Registro de desinstalação'
+                    )
+                ) {
+                    $tipoInstalacaoProduto = $tipoInstalacaoOffice
+                }
+
+                [PSCustomObject]@{
+                    nome_produto    = $nomeProduto
+                    id_produto      = $null
+                    versao          = $versaoProduto
+                    arquitetura     = $arquiteturaProduto
+                    tipo_instalacao = $tipoInstalacaoProduto
+                }
+            }
+        }
+    )
+
+    $anydeskParaAPI = $null
+    if ([string]$anydesk -match '^[0-9]{1,50}$') {
+        $anydeskParaAPI = [string]$anydesk
+    }
+
+    $dadosParaAPI = [ordered]@{
+        nome_computador     = [string]$pc.Name
+        ram_gb              = [math]::Round([double]$ramGB, 2)
+        sistema_operacional = [string]$os.Caption
+        ipv4                = $ipv4ParaAPI
+        fabricante          = $pc.Manufacturer
+        modelo              = $pc.Model
+        numero_serie        = $bios.SerialNumber
+        processador         = [string]$nomesProcessadores
+        versao_so           = [string]$os.Version
+        tipo_chave          = $tipoChave
+        status_licenca      = $statusLicenca
+        interface_rede      = $nomeAdaptador
+        status_rede         = $statusAdaptador
+        velocidade_rede     = $velocidadeAdaptador
+        anydesk_id          = $anydeskParaAPI
+        office_produtos     = $officeProdutosParaAPI
+        office_ids          = @($idsProduto)
+    }
+
+    ConvertTo-Json -InputObject $dadosParaAPI -Depth 5 -Compress
+    exit 0
 }
 
-$inventarioParaCSV = [PSCustomObject]$dadosSegurosCSV
+# Cria uma cópia protegida só para exportação
+    $dadosSegurosCSV = [ordered]@{}
+
+        foreach ($propriedade in $inventario.PSObject.Properties) {
+            $dadosSegurosCSV[$propriedade.Name] = ConvertTo-SafeCsvValue -Value $propriedade.Value
+        }
+
+    $inventarioParaCSV = [PSCustomObject]$dadosSegurosCSV
 
 
 #================================================
 # Exportação CSV
 
-try {
-    $pasta = $PastaSaida
-    $caminhoCSV = Join-Path -Path $pasta -ChildPath 'inventario.csv'
+    try {
+        $pasta = $PastaSaida
+        $caminhoCSV = Join-Path -Path $pasta -ChildPath 'inventario.csv'
 
-    # Criar a pasta
-    if (-not (Test-Path -LiteralPath $pasta -PathType Container)) {
-        New-Item -ItemType Directory -Path $pasta -ErrorAction Stop |
-        Out-Null
-    }
-
-    # Cabeçalho com o nome do objeto atual
-    $cabecalhoEsperado = (
-        $inventarioParaCSV |
-        ConvertTo-Csv -NoTypeInformation
-    )[0]
-
-    # Verifica se o CSV existente utiliza a mesma estrutura
-    if (Test-Path -LiteralPath $caminhoCSV -PathType Leaf) {
-        $cabecalhoAtual = Get-Content -LiteralPath $caminhoCSV -TotalCount 1 -ErrorAction Stop
-
-        if ($cabecalhoAtual -ne $cabecalhoEsperado) {
-            $dataBackup = Get-Date -Format 'yyyyMMdd-HHmmssfff'
-            $nomeBackup = 'inventario-backup-{0}.csv' -f $dataBackup
-            $caminhoBackup = Join-Path -Path $pasta -ChildPath $nomeBackup
-
-            Move-Item -LiteralPath $caminhoCSV -Destination $caminhoBackup -ErrorAction Stop
-
-            Write-Warning "A estrutura do inventário mudou. O CSV anterior foi preservado em: $caminhoBackup"
+        # Criar a pasta
+        if (-not (Test-Path -LiteralPath $pasta -PathType Container)) {
+            New-Item -ItemType Directory -Path $pasta -ErrorAction Stop |
+            Out-Null
         }
-    }
+
+        # Cabeçalho com o nome do objeto atual
+        $cabecalhoEsperado = (
+            $inventarioParaCSV |
+            ConvertTo-Csv -NoTypeInformation
+        )[0]
+
+        # Verifica se o CSV existente utiliza a mesma estrutura
+        if (Test-Path -LiteralPath $caminhoCSV -PathType Leaf) {
+            $cabecalhoAtual = Get-Content -LiteralPath $caminhoCSV -TotalCount 1 -ErrorAction Stop
+
+            if ($cabecalhoAtual -ne $cabecalhoEsperado) {
+                $dataBackup = Get-Date -Format 'yyyyMMdd-HHmmssfff'
+                $nomeBackup = 'inventario-backup-{0}.csv' -f $dataBackup
+                $caminhoBackup = Join-Path -Path $pasta -ChildPath $nomeBackup
+
+                Move-Item -LiteralPath $caminhoCSV -Destination $caminhoBackup -ErrorAction Stop
+
+                Write-Warning "A estrutura do inventário mudou. O CSV anterior foi preservado em: $caminhoBackup"
+            }
+        }
 
     # Parâmetros da Exportação
+
     $parametrosCSV = @{
         LiteralPath       = $caminhoCSV
         NoTypeInformation = $true
         Encoding          = 'UTF8'
         ErrorAction       = 'Stop'
-    }
+        }
 
-    # Acrescentar linha só com existência de CSV
-    if (Test-Path -LiteralPath $caminhoCSV -PathType Leaf) {
+        # Acrescentar linha só com existência de CSV
+
+        if (Test-Path -LiteralPath $caminhoCSV -PathType Leaf) {
         $parametrosCSV.Append = $true
+        }
+
+        $inventarioParaCSV |
+        Export-Csv @parametrosCSV
+
+        Write-Host ""
+        Write-Host "Inventario salvo em: $caminhoCSV"
     }
-
-    $inventarioParaCSV |
-    Export-Csv @parametrosCSV
-
-    Write-Host ""
-    Write-Host "Inventario salvo em: $caminhoCSV"
-}
 catch {
     $mensagemErro = 'Não foi possível salvar o inventário em CSV. Detalhes: {0}' -f $_.Exception.Message
     Write-Error $mensagemErro

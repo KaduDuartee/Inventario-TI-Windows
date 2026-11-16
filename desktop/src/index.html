@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Inventário TI</title>
+  </head>
+  <body>
+    <main class="app">
+      <header class="topo">
+        <div class="marca">
+          <div class="icone" aria-hidden="true">TI</div>
+          <div>
+            <p class="sobretitulo">INVENTÁRIO DE ATIVOS</p>
+            <h1>Inventário TI</h1>
+          </div>
+        </div>
+        <span class="versao">LOCAL</span>
+      </header>
+
+      <section class="boas-vindas">
+        <p class="sobretitulo">COLETA DO COMPUTADOR</p>
+        <h2>Olá! Vamos atualizar este equipamento.</h2>
+        <p>
+          A coleta reúne as informações do computador e as envia ao inventário
+          configurado.
+        </p>
+      </section>
+
+      <section class="painel" aria-labelledby="status-titulo">
+        <div class="painel-cabecalho">
+          <div>
+            <p class="sobretitulo">VERIFICAÇÃO</p>
+            <h2 id="status-titulo">Status da conexão</h2>
+          </div>
+          <span class="estado" id="estado-geral">Aguardando configuração</span>
+        </div>
+
+        <div class="status-lista">
+          <div class="status-item">
+            <span class="status-ponto"></span>
+            <div>
+              <strong>API</strong>
+              <p id="estado-api">Endereço ainda não verificado</p>
+            </div>
+          </div>
+          <div class="status-item">
+            <span class="status-ponto" id="ponto-dispositivo"></span>
+            <div>
+              <strong>Este dispositivo</strong>
+              <p id="estado-dispositivo">Credencial ainda não configurada</p>
+            </div>
+          </div>
+        </div>
+
+        <form class="credencial-form" id="form-credencial">
+          <h3>Vincular este computador</h3>
+
+          <label for="equipamento-id">ID do equipamento</label>
+          <input
+            id="equipamento-id"
+            type="number"
+            min="1"
+            max="4294967295"
+            step="1"
+            required
+          />
+
+          <label for="token-dispositivo">Token do dispositivo</label>
+          <input
+            id="token-dispositivo"
+            type="password"
+            maxlength="43"
+            autocomplete="off"
+            spellcheck="false"
+            required
+          />
+
+          <button class="botao-secundario" id="salvar-credencial" type="submit">
+            Salvar credencial
+          </button>
+
+          <p id="mensagem-credencial" aria-live="polite"></p>
+        </form>
+
+        <button
+          class="botao-principal"
+          id="coletar-inventario"
+          type="button"
+          disabled
+        >
+          Coletar e enviar inventário
+        </button>
+        <p id="resultado-coleta" aria-live="polite"></p>
+
+        <button class="botao-secundario" id="verificar-api" type="button">
+          Verificar conexão
+        </button>
+        <p class="nota" id="nota-conexao">
+          A coleta será habilitada quando a API e a credencial estiverem disponíveis.
+        </p>
+      </section>
+
+      <footer>
+        As informações serão enviadas à API do Inventário TI.
+      </footer>
+    </main>
+  </body>
+</html>
