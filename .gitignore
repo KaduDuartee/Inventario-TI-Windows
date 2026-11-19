@@ -3,6 +3,7 @@
 *.log
 .env
 AI_CONTEXT.private.md
+AGENTS.private.md
 
 # Dependencias instaladas pelo npm
 node_modules/
