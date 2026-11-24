@@ -126,6 +126,9 @@ export function criarRotasEquipamentos(banco) {
                 [equipamentoId, nomeDispositivo, credencial.tokenHash]
             );
 
+            resposta.setHeader('Cache-Control', 'no-store');
+            resposta.setHeader('Pragma', 'no-cache');
+
             return resposta.status(201).json({
                 dispositivo: {
                     equipamento_id: equipamentoId,
@@ -281,6 +284,9 @@ export function criarRotasEquipamentos(banco) {
                     erro: 'Dispositivo não encontrado para esse equipamento.'
                 });
             }
+
+            resposta.setHeader('Cache-Control', 'no-store');
+            resposta.setHeader('Pragma', 'no-cache');
 
             return resposta.status(200).json({
                 dispositivo: {

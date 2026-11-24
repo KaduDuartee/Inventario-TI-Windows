@@ -1,11 +1,14 @@
 import { banco } from './banco.js';
 import { criarAplicacao } from './aplicacao.js';
+import {
+    obterConfiguracaoServidor,
+    obterConfiguracaoTrustProxy
+} from './configuracao.js';
 
-const app = criarAplicacao(banco);
-const endereco = '127.0.0.1';
-const porta = 3000;
+const { host, porta } = obterConfiguracaoServidor();
+const trustProxy = obterConfiguracaoTrustProxy();
+const app = criarAplicacao(banco, { trustProxy });
 
-// Disponibiliza a API somente neste computador.
-app.listen(porta, endereco, () => {
-    console.log(`API disponível em http://${endereco}:${porta}`);
+app.listen(porta, host, () => {
+    console.log(`API disponível em http://${host}:${porta}`);
 });

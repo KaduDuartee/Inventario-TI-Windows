@@ -1,9 +1,26 @@
 import express from 'express';
 import { rateLimit } from 'express-rate-limit';
 import { criarRotasEquipamentos } from './rotas/equipamentos.js';
+import { obterConfiguracaoTrustProxy } from './configuracao.js';
 
-export function criarAplicacao(banco) {
+export function criarAplicacao(banco, opcoes = {}) {
     const app = express();
+    app.disable('x-powered-by');
+
+    const trustProxy = opcoes.trustProxy !== undefined
+        ? opcoes.trustProxy
+        : obterConfiguracaoTrustProxy();
+
+    if (trustProxy !== false) {
+        app.set('trust proxy', trustProxy);
+    }
+
+    // Cabeçalhos básicos de proteção para respostas JSON da API.
+    app.use((requisicao, resposta, proximo) => {
+        resposta.setHeader('X-Content-Type-Options', 'nosniff');
+        resposta.setHeader('Referrer-Policy', 'no-referrer');
+        proximo();
+    });
 
     const limiteRequisicoesEquipamentos = rateLimit({
         windowMs: 15 * 60 * 1000,
@@ -12,6 +29,16 @@ export function criarAplicacao(banco) {
         legacyHeaders: false,
         message: {
             erro: 'Limite de requisições atingido. Tente novamente mais tarde.'
+        }
+    });
+
+    const limiteRequisicoesSaudeBanco = rateLimit({
+        windowMs: 60 * 1000,
+        limit: opcoes.limiteSaudeBanco ?? 60,
+        standardHeaders: 'draft-8',
+        legacyHeaders: false,
+        message: {
+            erro: 'Limite de verificações de saúde atingido. Tente novamente em instantes.'
         }
     });
 
@@ -29,7 +56,7 @@ export function criarAplicacao(banco) {
     });
 
     // Verifica se a API consegue executar uma consulta no banco.
-    app.get('/saude/banco', async (requisicao, resposta) => {
+    app.get('/saude/banco', limiteRequisicoesSaudeBanco, async (requisicao, resposta) => {
         try {
             await banco.execute('SELECT 1');
 
@@ -68,4 +95,6 @@ export function criarAplicacao(banco) {
     });
 
     return app;
-}
+        }   
+    
+ 

@@ -1,9 +1,9 @@
 {
   "name": "desktop",
-  "productName": "desktop",
+  "productName": "Inventário TI",
   "version": "1.0.1",
   "private": true,
-  "description": "My Electron application description",
+  "description": "Aplicativo desktop de coleta de inventário para Windows",
   "keywords": [],
   "license": "MIT",
   "author": {

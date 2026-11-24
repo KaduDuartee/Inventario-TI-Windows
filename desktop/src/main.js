@@ -4,9 +4,11 @@ import path from 'node:path';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-
+import { obterUrlBaseApi } from './configuracaoApi.js';
 
 const executarArquivo = promisify(execFile);
+const urlBaseApi = obterUrlBaseApi();
+const hostApiExibicao = new URL(urlBaseApi).host;
 
 // Cria ou remove atalhos durante a instalação ou desinstalação no Windows.
 if (started) {
@@ -16,17 +18,29 @@ if (started) {
 const caminhoCredencial = () =>
   path.join(app.getPath('userData'), 'credencial-dispositivo.enc');
 
+function urlsIguais(urlA, urlB) {
+  try {
+    return new URL(urlA).href === new URL(urlB).href;
+  } catch {
+    return false;
+  }
+}
+
 function remetenteConfiavel(event) {
   const url = event.senderFrame?.url;
 
   if (!url) return false;
-  if (app.isPackaged) return url.startsWith('file://');
+  if (app.isPackaged) {
+    return urlsIguais(url, MAIN_WINDOW_WEBPACK_ENTRY);
+  }
 
   try {
     const endereco = new URL(url);
-    return endereco.protocol === 'http:' &&
+    return (
+      endereco.protocol === 'http:' &&
       endereco.hostname === 'localhost' &&
-      endereco.port === '3001';
+      endereco.port === '3001'
+    );
   } catch {
     return false;
   }
@@ -39,16 +53,18 @@ function exigirRemetenteConfiavel(event) {
 }
 
 function configuracaoCredencialValida(configuracao) {
-  return configuracao &&
+  return (
+    configuracao &&
     typeof configuracao === 'object' &&
     Number.isSafeInteger(configuracao.equipamentoId) &&
     configuracao.equipamentoId >= 1 &&
     configuracao.equipamentoId <= 4294967295 &&
     typeof configuracao.token === 'string' &&
-    /^[A-Za-z0-9_-]{43}$/.test(configuracao.token);
+    /^[A-Za-z0-9_-]{43}$/.test(configuracao.token)
+  );
 }
 
-ipcMain.handle('inventario:status-credencial', async event => {
+ipcMain.handle('inventario:status-credencial', async (event) => {
   exigirRemetenteConfiavel(event);
 
   if (!(await safeStorage.isAsyncEncryptionAvailable())) {
@@ -79,9 +95,7 @@ ipcMain.handle('inventario:status-credencial', async event => {
     return {
       armazenamentoDisponivel: true,
       credencialConfigurada: configurada,
-      equipamentoId: configurada
-        ? Number(configuracao.equipamentoId)
-        : null,
+      equipamentoId: configurada ? Number(configuracao.equipamentoId) : null,
     };
   } catch (erro) {
     if (erro.code === 'ENOENT') {
@@ -172,17 +186,14 @@ function prepararDadosColeta(inventario) {
   }
 
   const dados = Object.fromEntries(
-    Object.entries(inventario)
-      .filter(([campo]) => camposColetaPermitidos.has(campo))
+    Object.entries(inventario).filter(([campo]) =>
+      camposColetaPermitidos.has(campo),
+    ),
   );
 
-  const obrigatorios = [
-    'nome_computador',
-    'ram_gb',
-    'sistema_operacional',
-  ];
+  const obrigatorios = ['nome_computador', 'ram_gb', 'sistema_operacional'];
 
-  if (obrigatorios.some(campo => !Object.hasOwn(dados, campo))) {
+  if (obrigatorios.some((campo) => !Object.hasOwn(dados, campo))) {
     throw new Error('O JSON do coletor não contém os campos obrigatórios.');
   }
 
@@ -193,7 +204,7 @@ function prepararDadosColeta(inventario) {
   return dados;
 }
 
-ipcMain.handle('inventario:executar-coleta', async event => {
+ipcMain.handle('inventario:executar-coleta', async (event) => {
   exigirRemetenteConfiavel(event);
 
   if (process.platform !== 'win32') {
@@ -204,14 +215,16 @@ ipcMain.handle('inventario:executar-coleta', async event => {
   try {
     configuracao = await lerConfiguracaoCredencial();
   } catch {
-    return { ok: false, mensagem: 'A credencial do dispositivo não está disponível.' };
+    return {
+      ok: false,
+      mensagem: 'A credencial do dispositivo não está disponível.',
+    };
   }
 
   try {
-    const respostaSaude = await fetch(
-      'http://127.0.0.1:3000/saude/banco',
-      { signal: AbortSignal.timeout(3000) }
-    );
+    const respostaSaude = await fetch(`${urlBaseApi}/saude/banco`, {
+      signal: AbortSignal.timeout(3000),
+    });
 
     if (!respostaSaude.ok) {
       return {
@@ -249,18 +262,12 @@ ipcMain.handle('inventario:executar-coleta', async event => {
   try {
     ({ stdout } = await executarArquivo(
       'powershell.exe',
-      [
-        '-NoProfile',
-        '-NonInteractive',
-        '-File',
-        caminhoScript,
-        '-Json',
-      ],
+      ['-NoProfile', '-NonInteractive', '-File', caminhoScript, '-Json'],
       {
         windowsHide: true,
         timeout: 120000,
         maxBuffer: 5 * 1024 * 1024,
-      }
+      },
     ));
   } catch (erro) {
     const codigo = erro.code ?? erro.signal ?? 'desconhecido';
@@ -294,7 +301,7 @@ ipcMain.handle('inventario:executar-coleta', async event => {
   let resposta;
   try {
     resposta = await fetch(
-      `http://127.0.0.1:3000/equipamentos/${configuracao.equipamentoId}/coletas`,
+      `${urlBaseApi}/equipamentos/${configuracao.equipamentoId}/coletas`,
       {
         method: 'POST',
         headers: {
@@ -302,7 +309,7 @@ ipcMain.handle('inventario:executar-coleta', async event => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(dados),
-      }
+      },
     );
   } catch {
     return {
@@ -323,11 +330,13 @@ ipcMain.handle('inventario:executar-coleta', async event => {
   if (!resposta.ok) {
     return {
       ok: false,
-      mensagem: resultado?.erro ?? `A API respondeu com HTTP ${resposta.status}.`,
+      mensagem:
+        resultado?.erro ?? `A API respondeu com HTTP ${resposta.status}.`,
       ...(resposta.status >= 500
         ? {
             apiDisponivel: false,
-            mensagemApi: resultado?.erro ?? `A API respondeu com HTTP ${resposta.status}.`,
+            mensagemApi:
+              resultado?.erro ?? `A API respondeu com HTTP ${resposta.status}.`,
           }
         : {}),
     };
@@ -341,33 +350,43 @@ ipcMain.handle('inventario:executar-coleta', async event => {
   };
 });
 
-ipcMain.handle('inventario:verificar-api', async event => {
+ipcMain.handle('inventario:verificar-api', async (event) => {
   exigirRemetenteConfiavel(event);
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 3000);
 
   try {
-    const resposta = await fetch('http://127.0.0.1:3000/saude/banco', {
+    const resposta = await fetch(`${urlBaseApi}/saude/banco`, {
       signal: controller.signal,
     });
 
     if (!resposta.ok) {
       return {
         ok: false,
-        mensagem: resposta.status === 503
-          ? 'A API respondeu, mas o banco está indisponível.'
-          : `A API respondeu com HTTP ${resposta.status}.`,
+        mensagem:
+          resposta.status === 503
+            ? 'A API respondeu, mas o banco está indisponível.'
+            : `A API respondeu com HTTP ${resposta.status}.`,
       };
     }
 
     const dados = await resposta.json();
 
     return dados.status === 'ok' && dados.banco === 'disponivel'
-      ? { ok: true, mensagem: 'API e banco disponíveis em 127.0.0.1:3000.' }
-      : { ok: false, mensagem: 'A API respondeu, mas o banco está indisponível.' };
+      ? {
+          ok: true,
+          mensagem: `API e banco disponíveis em ${hostApiExibicao}.`,
+        }
+      : {
+          ok: false,
+          mensagem: 'A API respondeu, mas o banco está indisponível.',
+        };
   } catch {
-    return { ok: false, mensagem: 'API indisponível. Confira se está iniciada.' };
+    return {
+      ok: false,
+      mensagem: 'API indisponível. Confira se está iniciada.',
+    };
   } finally {
     clearTimeout(timeout);
   }
@@ -385,6 +404,14 @@ const createWindow = () => {
       sandbox: true,
       webSecurity: true,
     },
+  });
+
+  // Impede abertura de popups e navegações fora da página principal.
+  mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  mainWindow.webContents.on('will-navigate', (evento, urlDestino) => {
+    if (!urlsIguais(urlDestino, MAIN_WINDOW_WEBPACK_ENTRY)) {
+      evento.preventDefault();
+    }
   });
 
   // Carrega a página principal do aplicativo.

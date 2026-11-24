@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'"
     />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Inventário TI</title>
@@ -101,13 +101,12 @@
           Verificar conexão
         </button>
         <p class="nota" id="nota-conexao">
-          A coleta será habilitada quando a API e a credencial estiverem disponíveis.
+          A coleta será habilitada quando a API e a credencial estiverem
+          disponíveis.
         </p>
       </section>
 
-      <footer>
-        As informações serão enviadas à API do Inventário TI.
-      </footer>
+      <footer>As informações serão enviadas à API do Inventário TI.</footer>
     </main>
   </body>
 </html>

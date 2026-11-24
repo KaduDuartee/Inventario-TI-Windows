@@ -25,7 +25,7 @@ const config = {
       port: 3001,
       mainConfig: './webpack.main.config.mjs',
       devContentSecurityPolicy:
-  "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:",
+        "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'",
       renderer: {
         config: './webpack.renderer.config.mjs',
         entryPoints: [
@@ -39,7 +39,7 @@ const config = {
           },
         ],
       },
-        devServer: {
+      devServer: {
         hot: false,
         liveReload: false,
         client: false,
