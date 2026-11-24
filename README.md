@@ -29,10 +29,10 @@ O token administrativo fica somente com o administrador e no servidor (como hash
 
 | Componente | Pasta | Função | Documentação |
 | --- | --- | --- | --- |
-| Coletor | raiz (`InventarioTI.ps1`) | Coleta os dados da máquina e exporta em CSV ou JSON | [docs/coletor.md](docs/coletor.md) |
-| API | `api/` | Recebe e consulta coletas, cadastra dispositivos, autentica | [api/README.md](api/README.md) |
-| Aplicativo desktop | `desktop/` | Executa o coletor e envia a coleta à API | [desktop/README.md](desktop/README.md) |
-| Banco de dados | `sql/` | Migrações versionadas do MySQL | [sql/README.md](sql/README.md) |
+| Coletor | raiz (`InventarioTI.ps1`) | Coleta os dados da máquina e exporta em CSV ou JSON | [InventarioTI.ps1](InventarioTI.ps1) |
+| API | `api/` | Recebe e consulta coletas, cadastra dispositivos, autentica | [api/README_API.md](api/README_API.md) |
+| Aplicativo desktop | `desktop/` | Executa o coletor e envia a coleta à API | [desktop/README_ELECTRON.md](desktop/README_ELECTRON.md) |
+| Banco de dados | `sql/` | Migrações versionadas do MySQL | [sql/README_BD.md](sql/README_BD.md) |
 
 ## Estrutura do projeto
 
@@ -54,10 +54,8 @@ LICENSE
 | Componente | Requisitos |
 | --- | --- |
 | Coletor | Windows com PowerShell 5.1 (PowerShell 7 ainda não foi validado) |
-| API | Node.js, npm e MySQL 8.4 (testado com 8.4.11) |
+| API | Node.js (testado com v24.21.0), npm e MySQL 8.4 (testado com 8.4.11) |
 | Aplicativo desktop | Windows, Node.js e npm, mais API e MySQL ativos |
-
-<!-- VERIFICAR: acrescentar a versão mínima de Node.js, conforme package.json (campo engines) e o que você usa. -->
 
 ## Início rápido
 
@@ -69,14 +67,14 @@ cd Inventario-TI-Windows
 .\InventarioTI.ps1
 ```
 
-O CSV é salvo em `%LOCALAPPDATA%\InventarioTI\inventario.csv`. Parâmetros e detalhes: [docs/coletor.md](docs/coletor.md).
+O CSV é salvo em `%LOCALAPPDATA%\InventarioTI\inventario.csv`.
 
 ### Modo integrado (coletor + desktop + API + MySQL)
 
-1. Prepare o MySQL e aplique as migrações: [sql/README.md](sql/README.md).
-2. Configure e inicie a API: [api/README.md](api/README.md).
-3. Gere o token administrativo e cadastre o dispositivo (também em `api/README.md`).
-4. Execute o aplicativo desktop: [desktop/README.md](desktop/README.md).
+1. Prepare o MySQL e aplique as migrações: [sql/README_BD.md](sql/README_BD.md).
+2. Configure e inicie a API: [api/README_API.md](api/README_API.md).
+3. Gere o token administrativo e cadastre o dispositivo (também em [api/README_API.md](api/README_API.md)).
+4. Execute o aplicativo desktop: [desktop/README_ELECTRON.md](desktop/README_ELECTRON.md).
 
 ## Segurança e privacidade
 
@@ -93,7 +91,7 @@ No modo integrado, os dados da coleta saem da máquina e são gravados em um ban
 
 **Validado em ambiente local:**
 
-- suíte de testes da API (32 testes aprovados na última validação);
+- suíte de testes da API (43 testes aprovados na última validação);
 - rotas de saúde da API e do banco;
 - coleta em JSON pelo PowerShell;
 - gravação dos campos de inventário, produtos Office e IDs do Office;
@@ -110,7 +108,7 @@ No modo integrado, os dados da coleta saem da máquina e são gravados em um ban
 - atualização em outros perfis de usuário e versões do Windows;
 - distribuição assinada do instalador.
 
-A auditoria de dependências da API não apontou vulnerabilidades na última execução e deve ser repetida antes de qualquer distribuição. A auditoria completa das dependências do aplicativo desktop ainda não foi confirmada.
+A auditoria de dependências (`npm audit`) da API e das dependências de runtime do aplicativo desktop (`--omit=dev`) não apontou vulnerabilidades; há alertas conhecidos apenas em dependências de desenvolvimento/build do Electron (`oxfmt` e `@electron-forge/plugin-webpack`), que devem ser reavaliados antes de distribuição externa.
 
 ## Limitações conhecidas
 

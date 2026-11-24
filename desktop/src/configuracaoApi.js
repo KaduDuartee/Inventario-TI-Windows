@@ -36,10 +36,16 @@ export function normalizarUrlApi(urlBruta) {
 }
 
 export function obterUrlBaseApi(env = process.env) {
-  const urlConfigurada = env?.INVENTARIO_API_URL;
+  const urlRuntime = env?.INVENTARIO_API_URL;
 
-  if (typeof urlConfigurada === 'string' && urlConfigurada.trim() !== '') {
-    return normalizarUrlApi(urlConfigurada);
+  if (typeof urlRuntime === 'string' && urlRuntime.trim() !== '') {
+    return normalizarUrlApi(urlRuntime);
+  }
+
+  const urlBuild = env?.INVENTARIO_API_URL_BUILD;
+
+  if (typeof urlBuild === 'string' && urlBuild.trim() !== '') {
+    return normalizarUrlApi(urlBuild);
   }
 
   return URL_API_PADRAO_LOCAL;

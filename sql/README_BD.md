@@ -1,6 +1,6 @@
 # Banco de dados (MySQL)
 
-Esta pasta contém as migrações do banco MySQL usado pela [API](../api/README.md) e dados fictícios para reproduzir um ambiente local de desenvolvimento e demonstração do Inventário TI.
+Esta pasta contém as migrações do banco MySQL usado pela [API](../api/README_API.md) e dados fictícios para reproduzir um ambiente local de desenvolvimento e demonstração do Inventário TI.
 
 Visão geral do projeto: [README principal](../README.md).
 
@@ -8,11 +8,11 @@ Visão geral do projeto: [README principal](../README.md).
 
 | Arquivo | Função |
 | --- | --- |
-| `001_criar_tabelas.sql` | Cria as tabelas de equipamentos e coletas |
-| `002_criar_tabela_dispositivos.sql` | Cria a identidade técnica vinculada a um equipamento e guarda apenas o hash do token |
+| `001_criar_tabelas.sql` | Cria as tabelas `equipamentos` e `coletas` |
+| `002_criar_tabela_dispositivos.sql` | Cria a tabela `dispositivos` vinculada a `equipamentos` e guarda apenas o hash do token |
+| `003_ampliar_coletas.sql` | Adiciona campos de hardware/SO/rede/AnyDesk em `coletas` e cria `coleta_office_produtos` |
+| `004_criar_tabela_ids_office.sql` | Cria a tabela `coleta_office_ids` para armazenar os IDs de release do Office |
 | `exemplos/001_dados_ficticios.sql` | Cadastra dois equipamentos fictícios e três coletas de demonstração |
-
-<!-- VERIFICAR: listar aqui as migrações seguintes (003 em diante), como as que criam as tabelas de produtos e IDs do Office e os demais campos da coleta. Rode: Get-ChildItem sql -Filter '*.sql' | Sort-Object Name -->
 
 ## Como as migrações funcionam
 
@@ -158,9 +158,9 @@ CREATE USER 'inventario_api'@'localhost' IDENTIFIED BY '<SENHA_FORTE>';
 GRANT SELECT, INSERT, UPDATE ON inventario_demo.* TO 'inventario_api'@'localhost';
 ```
 
-Use essa conta em `DB_USER` e `DB_PASSWORD` no `.env` da API. Não registre a senha em arquivos versionados, logs ou capturas de tela. Se a API não conseguir autenticar, confira se o host da conta corresponde ao `DB_HOST`. Se ela recusar uma operação por falta de permissão, revise os privilégios concedidos.
+Use essa conta em `DB_USER` e `DB_PASSWORD` no `.env` da API. Não registre a senha em arquivos versionados, logs ou capturas de tela. Se a API não conseguir autenticar, confira se o host da conta corresponde ao `DB_HOST`.
 
-<!-- VERIFICAR: confirmar os privilégios mínimos que a API realmente precisa (por exemplo, se alguma rota usa DELETE) e ajustar o GRANT. -->
+Os privilégios `SELECT, INSERT, UPDATE` são suficientes para todas as rotas atuais da API (a revogação de dispositivo usa `UPDATE dispositivos SET ativo = FALSE`, sem executar SQL `DELETE`).
 
 ## Observações
 

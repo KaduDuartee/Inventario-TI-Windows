@@ -8,9 +8,9 @@ Visão geral do projeto: [README principal](../README.md).
 
 ## Requisitos
 
-- Node.js e npm;
-- MySQL 8.4 ativo (testado com 8.4.11), com as migrações de [`sql/`](../sql/README.md) aplicadas;
-- uma conta MySQL com permissões limitadas, não `root` (veja [sql/README.md](../sql/README.md#criar-uma-conta-limitada-para-a-api)).
+- Node.js (testado com v24.21.0) e npm;
+- MySQL 8.4 ativo (testado com 8.4.11), com as migrações de [`sql/`](../sql/README_BD.md) aplicadas;
+- uma conta MySQL com permissões limitadas, não `root` (veja [sql/README_BD.md](../sql/README_BD.md#criar-uma-conta-limitada-para-a-api)).
 
 ## Estrutura
 
@@ -18,7 +18,9 @@ Visão geral do projeto: [README principal](../README.md).
 api/
   src/
     server.js              inicia o serviço
+    configuracao.js        lê e valida variáveis de ambiente
     aplicacao.js           monta middlewares e rotas
+    banco.js               cria o pool MySQL
     rotas/equipamentos.js  rotas de equipamentos, dispositivos e coletas
     middleware/            autenticação
     seguranca/             regras de vínculo entre credencial e equipamento
@@ -34,9 +36,9 @@ api/
    if (-not (Test-Path .env)) { Copy-Item .env.example .env }
    ```
 
-2. No `.env`, configure `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD` e `DB_NAME` conforme o seu MySQL local.
+2. No `.env`, configure `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD` e `DB_NAME` conforme o seu MySQL local. As variáveis opcionais `HOST` (padrão `127.0.0.1`), `PORT` (padrão `3000`), `TRUST_PROXY` (padrão `false`) e `DB_SSL` (padrão `false`) permitem ajustar a API para ambiente remoto atrás de proxy reverso.
 3. Defina `ADMIN_TOKEN_HASH` com o hash SHA-256 de um token administrativo aleatório, como descrito em [Gerar a credencial administrativa](#gerar-a-credencial-administrativa).
-4. Aplique as migrações do banco, seguindo [`sql/README.md`](../sql/README.md).
+4. Aplique as migrações do banco, seguindo [`sql/README_BD.md`](../sql/README_BD.md).
 5. Dentro da pasta `api/`, instale as dependências e inicie a API:
 
    ```powershell
@@ -100,8 +102,13 @@ Invoke-RestMethod -Uri 'http://127.0.0.1:3000/equipamentos' -Headers $cabecalhoA
 
 | Método | Rota | Credencial | Função |
 | --- | --- | --- | --- |
-| `GET` | `/equipamentos` | Administrativa | Consulta equipamentos |
+| `POST` | `/equipamentos` | Administrativa | Cadastra um equipamento |
+| `GET` | `/equipamentos` | Administrativa | Lista até 100 equipamentos |
+| `GET` | `/equipamentos/:id` | Administrativa | Consulta um equipamento pelo ID |
+| `GET` | `/equipamentos/:id/coletas` | Administrativa | Consulta até 100 coletas recentes |
 | `POST` | `/equipamentos/:id/dispositivo` | Administrativa | Cadastra o dispositivo de um equipamento |
+| `DELETE` | `/equipamentos/:id/dispositivo` | Administrativa | Revoga o dispositivo ativo do equipamento |
+| `POST` | `/equipamentos/:id/dispositivo/rotacionar` | Administrativa | Gera novo token e reativa o dispositivo |
 | `POST` | `/equipamentos/:id/coletas` | Do dispositivo | Registra uma coleta |
 
 As rotas de saúde (`/saude` e `/saude/banco`) estão descritas em [Verificar se está funcionando](#verificar-se-está-funcionando).
@@ -129,7 +136,20 @@ Em caso de sucesso, a API responde com HTTP `201`. O token do dispositivo fica e
 
 Cada equipamento pode ter somente um dispositivo cadastrado. Uma nova tentativa para um equipamento que já tenha dispositivo retorna HTTP `409`; ela não recupera nem substitui o token existente.
 
-<!-- VERIFICAR: documentar aqui o procedimento de revogação e rotação do token de dispositivo (rota ou comando usado), já validado segundo o AGENTS.md. -->
+### Revogar ou rotacionar um dispositivo
+
+Ambas as operações exigem a credencial administrativa:
+
+- **Revogar (`DELETE /equipamentos/:id/dispositivo`):** marca `ativo = FALSE` no banco e retorna HTTP `204`.
+- **Rotacionar (`POST /equipamentos/:id/dispositivo/rotacionar`):** gera um novo token aleatório, substitui `token_hash`, reativa o dispositivo (`ativo = TRUE`) e retorna HTTP `200` com o novo `token` uma única vez (com `Cache-Control: no-store`).
+
+```powershell
+# Revogar dispositivo ativo do equipamento 1
+Invoke-RestMethod -Uri 'http://127.0.0.1:3000/equipamentos/1/dispositivo' -Method Delete -Headers $cabecalhoAdmin
+
+# Rotacionar credencial do equipamento 1
+$rotacao = Invoke-RestMethod -Uri 'http://127.0.0.1:3000/equipamentos/1/dispositivo/rotacionar' -Method Post -Headers $cabecalhoAdmin
+```
 
 ### Enviar uma coleta
 
@@ -159,15 +179,19 @@ $respostaColeta
 
 | Campo | Obrigatório | Regra |
 | --- | --- | --- |
-| `nome_computador` | Sim | Texto não vazio |
-| `sistema_operacional` | Sim | Texto não vazio |
-| `ram_gb` | Sim | Número positivo, com no máximo duas casas decimais |
+| `nome_computador` | Sim | Texto não vazio, até 100 caracteres |
+| `sistema_operacional` | Sim | Texto não vazio, até 150 caracteres |
+| `ram_gb` | Sim | Número positivo até `99999999.99`, com no máximo duas casas decimais |
 | `ipv4` | Não | Endereço IPv4 válido ou `null` |
-| `office_ids` | Não | Lista de IDs do Office, sem espaços nem acentos, com limite de itens |
+| `fabricante`, `modelo`, `numero_serie`, `interface_rede` | Não | Texto ou `null`, até 100 caracteres cada |
+| `processador` | Não | Texto ou `null`, até 255 caracteres |
+| `versao_so`, `tipo_chave`, `anydesk_id` | Não | Texto ou `null`, até 50 caracteres cada |
+| `status_licenca` | Não | Texto ou `null`, até 60 caracteres |
+| `status_rede`, `velocidade_rede` | Não | Texto ou `null`, até 30 caracteres cada |
+| `office_produtos` | Não | Lista com até 50 objetos (`nome_produto` até 150 chars; opcionais `id_produto`, `versao`, `arquitetura`, `tipo_instalacao`) |
+| `office_ids` | Não | Lista com até 50 IDs ASCII sem espaços (1 a 100 caracteres cada) |
 
-A API rejeita campos não previstos e corpos JSON acima de 10 KB. Em caso de dados inválidos, nada é gravado.
-
-<!-- VERIFICAR: completar a tabela acima com todos os campos que a API aceita hoje (produtos Office, versão, arquitetura etc.), conforme src/rotas/equipamentos.js, e confirmar o limite exato de itens de office_ids e o limite de tamanho do corpo. -->
+A API rejeita campos não previstos e corpos JSON acima de `10 KB`. Em caso de dados inválidos, nada é gravado.
 
 ## Códigos de resposta
 

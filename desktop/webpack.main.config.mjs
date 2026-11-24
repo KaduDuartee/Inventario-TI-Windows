@@ -1,4 +1,10 @@
+import webpack from 'webpack';
 import { rules } from './webpack.rules.mjs';
+import { normalizarUrlApi } from './src/configuracaoApi.js';
+
+const urlApiBuild = process.env.INVENTARIO_API_URL?.trim()
+  ? normalizarUrlApi(process.env.INVENTARIO_API_URL)
+  : '';
 
 export default {
   /**
@@ -9,4 +15,9 @@ export default {
   module: {
     rules,
   },
+  plugins: [
+    new webpack.DefinePlugin({
+      'process.env.INVENTARIO_API_URL_BUILD': JSON.stringify(urlApiBuild),
+    }),
+  ],
 };
